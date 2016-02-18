@@ -1,0 +1,17 @@
+[package]
+name = "clippy-io"
+version = "0.1.0"
+authors = ["Benjamin Kampmann <ben@create-build-execute.com>"]
+
+[dependencies]
+# clippy = "*"
+iron = "*"
+urlencoded = "*"
+logger ="*"
+router = "*"
+mount = "*"
+persistent = "*"
+staticfile = "*"
+
+[dependencies.bodyparser]
+git = "https://github.com/iron/body-parser.git"
