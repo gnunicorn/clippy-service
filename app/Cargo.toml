@@ -14,4 +14,5 @@ persistent = "*"
 staticfile = "*"
 
 [dependencies.bodyparser]
+# has no release yet...
 git = "https://github.com/iron/body-parser.git"
