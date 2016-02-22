@@ -12,6 +12,8 @@ use iron::prelude::*;
 use staticfile::Static;
 use router::Router;
 use iron::status;
+use iron::modifiers::Redirect;
+use iron::Url;
 
 fn main() {
 
@@ -33,19 +35,39 @@ fn main() {
         let key = format!("{}/{}:{} ", user, repo, branch);
         let redis = setup_redis();
 
-        let cached_result = redis.get(key.clone());
-
-        if cached_result.is_ok(){
-            let cached_value : Option<String>  = cached_result.unwrap();
-            if cached_value.is_some(){
-                return Ok(Response::with((status::Ok, cached_value.unwrap())))
-            }
+        if let Some(url) = get_redis_redir(&redis, &key){
+            return Ok(Response::with((Redirect(url))));
         }
+
 
         let resp = format!("There shall be content here for {}", key);
         Ok(Response::with((status::Ok, resp)))
 
     }
+}
+
+fn get_redis_redir(redis: &redis::Connection, key: &str) -> Option<Url> {
+    let result : Option<String> = get_redis_value(redis, key);
+    if result.is_some(){
+        if let Ok(url) = Url::parse(&result.unwrap()){
+            return Some(url);
+        }
+    }
+    return None;
+}
+
+fn get_redis_value(redis: &redis::Connection, key: &str) -> Option<String> {
+
+    let cached_result = redis.get(key);
+
+    if cached_result.is_ok(){
+        let cached_value : Option<String>  = cached_result.unwrap();
+        if cached_value.is_some(){
+            return cached_value;
+        }
+    }
+
+    return None;
 }
 
 fn setup_redis() -> redis::Connection<> {
