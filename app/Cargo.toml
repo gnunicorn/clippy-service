@@ -9,9 +9,8 @@ iron = "*"
 urlencoded = "*"
 logger ="*"
 router = "*"
-mount = "*"
-persistent = "*"
 staticfile = "*"
+redis = "0.5.2"
 
 [dependencies.bodyparser]
 # has no release yet...

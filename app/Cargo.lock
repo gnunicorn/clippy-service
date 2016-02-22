@@ -5,8 +5,7 @@ dependencies = [
  "bodyparser 0.1.0 (git+https://github.com/iron/body-parser.git)",
  "iron 0.2.6 (registry+https://github.com/rust-lang/crates.io-index)",
  "logger 0.0.3 (registry+https://github.com/rust-lang/crates.io-index)",
- "mount 0.0.10 (registry+https://github.com/rust-lang/crates.io-index)",
- "persistent 0.0.9 (registry+https://github.com/rust-lang/crates.io-index)",
+ "redis 0.5.2 (registry+https://github.com/rust-lang/crates.io-index)",
  "router 0.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "staticfile 0.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "urlencoded 0.2.1 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -40,6 +39,11 @@ dependencies = [
  "serde 0.6.13 (registry+https://github.com/rust-lang/crates.io-index)",
  "serde_json 0.6.0 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
+
+[[package]]
+name = "byteorder"
+version = "0.4.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
 
 [[package]]
 name = "conduit-mime-types"
@@ -304,6 +308,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "redis"
+version = "0.5.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+dependencies = [
+ "rustc-serialize 0.3.18 (registry+https://github.com/rust-lang/crates.io-index)",
+ "sha1 0.1.1 (registry+https://github.com/rust-lang/crates.io-index)",
+ "url 0.5.5 (registry+https://github.com/rust-lang/crates.io-index)",
+]
+
+[[package]]
 name = "route-recognizer"
 version = "0.1.11"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -355,6 +369,14 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 dependencies = [
  "num 0.1.31 (registry+https://github.com/rust-lang/crates.io-index)",
  "serde 0.6.13 (registry+https://github.com/rust-lang/crates.io-index)",
+]
+
+[[package]]
+name = "sha1"
+version = "0.1.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+dependencies = [
+ "byteorder 0.4.2 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
 
 [[package]]
