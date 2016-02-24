@@ -4,7 +4,6 @@ version = "0.1.0"
 authors = ["Benjamin Kampmann <ben@create-build-execute.com>"]
 
 [dependencies]
-# clippy = "*"
 iron = "*"
 urlencoded = "*"
 logger ="*"
@@ -16,7 +15,13 @@ hyper = "^0.7.2"
 url = "^0.5.5"
 log = "^0.3.5"
 env_logger = "^0.3"
+time = "^0.1"
+tempdir = "^0.3.4"
+zip = "^0.1.6"
 
 [dependencies.bodyparser]
 # has no release yet...
 git = "https://github.com/iron/body-parser.git"
+
+[dependencies.clippy]
+git = "https://github.com/Manishearth/rust-clippy"

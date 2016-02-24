@@ -4,19 +4,30 @@ extern crate redis;
 extern crate rustc_serialize;
 extern crate hyper;
 extern crate url;
+extern crate time;
+extern crate tempdir;
+extern crate zip;
 
 #[macro_use]
 extern crate router;
-
 
 // for logging
 #[macro_use]
 extern crate log;
 extern crate env_logger;
 
+use std::fs::create_dir_all;
+use std::fs::File;
 use std::path::Path;
-use std::io::Read;
+use std::io::{Read, Cursor};
+use std::io::Write;
+use std::fs;
+use std::u8;
 use std::env;
+use std::process::Command;
+use tempdir::TempDir;
+use time::now_utc;
+use zip::*;
 
 use rustc_serialize::json::Json;
 
@@ -33,7 +44,87 @@ use hyper::header;
 use staticfile::Static;
 use router::Router;
 
-use redis::Commands;
+use redis::{Commands, PipelineCommands};
+
+fn update_for_github(user: &str, repo: &str, sha: &str) {
+    let redis: redis::Connection = setup_redis();
+    let github_url = format!("https://github.com/{0}/{1}/archive/{2}.zip",
+                             user,
+                             repo,
+                             sha);
+    let log_key =  format!("log/github/{0}/{1}:{2}",
+                             user,
+                             repo,
+                             sha);
+
+    // starting a log file
+    if let Ok(existing) = redis::transaction(&redis, &[log_key.clone()], |pipe| {
+        match redis.exists(log_key.clone()) {
+            Ok(Some(false)) => {
+                pipe.cmd("RPUSH")
+                        .arg(log_key.clone())
+                        .arg(format!("{0} started processing github/{1}/{2}:{3}",
+                                            time::now_utc().rfc3339(),
+                                            user,
+                                            repo,
+                                            sha))
+                        .ignore()
+                        .execute(&redis);
+                return Ok(Some(false));
+                },
+            _ => Ok(Some(true))
+        }}) {
+        if existing {
+            // we have been alerted, the key already existed
+            // so someone else is writing a log file. We should stop now.
+            return
+        }
+    }
+
+    log_redis(&redis, &log_key, "Creating Temp Directory...");
+
+    if let Ok(tmp_dir) = TempDir::new(&format!("github_{0}_{1}_{2}",
+                                                user,
+                                                repo,
+                                                sha)) {
+        log_redis(&redis, &log_key, &format!("Fetching {}", &github_url));
+
+        if let Some(zip_body) = fetch(&Client::new(), &github_url) {
+            log_redis(&redis, &log_key, "Extracting archive");
+            if let Ok(mut archive) = zip::ZipArchive::new(std::io::Cursor::new(zip_body)) {
+                for i in 0..archive.len()
+                {
+                    let mut zip_file = archive.by_index(i).unwrap();
+                    let full_path = tmp_dir.path().join(zip_file.name());
+                    let extracted_path = full_path.as_path();
+                    let mut writer = File::create(extracted_path).unwrap();
+                    let mut buffer: Vec<u8> = vec![];
+
+                    fs::create_dir_all(extracted_path.parent().unwrap()).unwrap();
+                    zip_file.read_to_end(&mut buffer).unwrap();
+                    writer.write(&buffer).unwrap();
+                }
+
+                log_redis(&redis, &log_key, "Running clippy.");
+
+                let output = Command::new("cargo").args(&["rustc", "--", "-Zunstable-options", "-Zextra-plugins=clippy", "-Zno-trans", "-lclippy", "--error-format=json"])
+                                      .current_dir(&tmp_dir.path())
+                                      .output()
+                                      .unwrap_or_else(|e| {
+                                          log_redis(&redis, &log_key,
+                                                    &format!("Clippy execution failed: {}", &e));
+                                          panic!("Failed to execute clippy: {}", e);
+                                      });
+            } else {
+                log_redis(&redis, &log_key, "Extracting archive failed.");
+            }
+        } else {
+            log_redis(&redis, &log_key, "Fetching from github failed!");
+        }
+    } else {
+        log_redis(&redis, &log_key, "Creating Temp Directory failed");
+    }
+}
 
 fn main() {
     // setup logger
@@ -55,7 +146,7 @@ fn main() {
         let repo = router.find("repo").unwrap();
         let branch = router.find("branch").unwrap_or("master");
         let ext = router.find("ext").unwrap_or("svg");
-        let key = format!("{}/{}:{} ", user, repo, branch);
+        let key = format!("badge/github/{}/{}:{}", user, repo, branch);
 
         let redis: redis::Connection = setup_redis();
         // Create a client.
@@ -73,7 +164,7 @@ fn main() {
         if let Some(body) = fetch(&hyper_client, &github_url) {
             if let Ok(json) = Json::from_str(&body) {
                 if let Some(sha) = json.find_path(&["object", "sha"]) {
-                    let sha_key = format!("{}/{}:{} ", user, repo, sha);
+                    let sha_key = format!("badge/github/{}/{}:{} ", user, repo, sha);
 
                     if let Some(url) = get_redis_redir(&redis, &sha_key) {
                         set_redis_cache(&redis, &key, &url.clone().serialize());
@@ -112,6 +203,17 @@ fn main() {
     }
 }
 
+fn log_redis(redis: &redis::Connection, key: &str, value: &str) {
+    redis::pipe()
+        .cmd("RPUSH")
+            .arg(key.clone())
+            .arg(format!("{0} {1}",
+                         time::now_utc().rfc3339(),
+                         value))
+            .ignore()
+        .execute(redis);
+}
+
 fn set_redis_cache(redis: &redis::Connection, key: &str, value: &str) {
     redis::pipe()
         .cmd("SET").arg(key.clone()).arg(value).ignore()
@@ -144,10 +246,8 @@ fn get_redis_redir(redis: &redis::Connection, key: &str) -> Option<Url> {
 
 fn get_redis_value(redis: &redis::Connection, key: &str) -> Option<String> {
 
-    let cached_result = redis.get(key);
-
-    if cached_result.is_ok() {
-        let cached_value: Option<String> = cached_result.unwrap();
+    if let Ok(Some(cached_result)) = redis.get(key) {
+        let cached_value: Option<String> = cached_result;
         if cached_value.is_some() {
             return cached_value;
         }
