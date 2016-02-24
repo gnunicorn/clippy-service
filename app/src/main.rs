@@ -19,8 +19,7 @@ extern crate env_logger;
 use std::fs::create_dir_all;
 use std::fs::File;
 use std::path::Path;
-use std::io::{Read, Cursor};
-use std::io::Write;
+use std::io::{Read, Cursor, Result as ioResult, Write};
 use std::fs;
 use std::u8;
 use std::env;
@@ -46,7 +45,13 @@ use router::Router;
 
 use redis::{Commands, PipelineCommands};
 
-fn update_for_github(user: &str, repo: &str, sha: &str) {
+struct ClippyResult {
+    failed: bool,
+    warnings: u32,
+    errors: u32
+}
+
+fn update_for_github(user: &str, repo: &str, sha: &str) -> Result<ClippyResult, &'static str> {
     let redis: redis::Connection = setup_redis();
     let github_url = format!("https://github.com/{0}/{1}/archive/{2}.zip",
                              user,
@@ -77,7 +82,7 @@ fn update_for_github(user: &str, repo: &str, sha: &str) {
         if existing {
             // we have been alerted, the key already existed
             // so someone else is writing a log file. We should stop now.
-            return
+            return Err("Already running!");
         }
     }
 
@@ -115,14 +120,18 @@ fn update_for_github(user: &str, repo: &str, sha: &str) {
                                                     &format!("Clippy execution failed: {}", &e));
                                           panic!("Failed to execute clippy: {}", e);
                                       });
+                Err("Not Yet Implemented")
             } else {
                 log_redis(&redis, &log_key, "Extracting archive failed.");
+                Err("Extracting archive failed.")
             }
         } else {
             log_redis(&redis, &log_key, "Fetching from github failed!");
+            Err("Fetching from github failed!")
         }
     } else {
         log_redis(&redis, &log_key, "Creating Temp Directory failed");
+        Err("Creating Temp Directory failed")
     }
 }
 
@@ -272,7 +281,7 @@ fn fetch(client: &Client, url: &str) -> Option<String> {
 
 fn setup_redis() -> redis::Connection {
     let url = redis::parse_redis_url(&env::var("REDIS_URL")
-                                          .unwrap_or("redis://redis/".to_string()))
+                                          .unwrap_or("redis://redis/".to_owned()))
                   .unwrap();
     redis::Client::open(url)
         .unwrap()
