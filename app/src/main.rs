@@ -5,11 +5,13 @@ extern crate rustc_serialize;
 extern crate hyper;
 extern crate url;
 
-#[macro_use] extern crate router;
+#[macro_use]
+extern crate router;
 
 
 // for logging
-#[macro_use] extern crate log;
+#[macro_use]
+extern crate log;
 extern crate env_logger;
 
 use std::path::Path;
@@ -58,13 +60,16 @@ fn main() {
         let redis: redis::Connection = setup_redis();
         // Create a client.
 
-        if let Some(url) = get_redis_redir(&redis, &key){
+        if let Some(url) = get_redis_redir(&redis, &key) {
             return redir(&url, &req.url);
         }
 
         let hyper_client: Client = Client::new();
 
-        let github_url = format!("https://api.github.com/repos/{0}/{1}/git/refs/heads/{2}", user, repo, branch);
+        let github_url = format!("https://api.github.com/repos/{0}/{1}/git/refs/heads/{2}",
+                                 user,
+                                 repo,
+                                 branch);
         if let Some(body) = fetch(&hyper_client, &github_url) {
             if let Ok(json) = Json::from_str(&body) {
                 if let Some(sha) = json.find_path(&["object", "sha"]) {
@@ -75,7 +80,9 @@ fn main() {
                         return redir(&url, &req.url);
                     }
 
-                    let linting_url = format!("https://img.shields.io/badge/clippy-linting-blue.{}?", &ext);
+                    let linting_url = format!("https://img.shields.io/badge/clippy-linting-blue.\
+                                               {}?",
+                                              &ext);
 
 
                     set_redis_cache(&redis, &sha_key, &linting_url);
@@ -84,18 +91,20 @@ fn main() {
                     // let resp = format!("There shall be content here for {}", key);
                     return redir(&Url::parse(&linting_url).unwrap(), &req.url);
                 } else {
-                    warn!("{}: SHA not found in JSON: {}",
-                          &github_url, &json);
-                    return Ok(Response::with((status::NotFound, format!("Couldn't find on github {}", &github_url))))
-               }
+                    warn!("{}: SHA not found in JSON: {}", &github_url, &json);
+                    return Ok(Response::with((status::NotFound,
+                                              format!("Couldn't find on github {}", &github_url))));
+                }
             } else {
                 warn!("{}: Couldn't parse Githubs JSON response: {}",
-                      &github_url, &body);
+                      &github_url,
+                      &body);
                 return Ok(Response::with((status::InternalServerError,
-                                          "Couldn't parse Githubs JSON response")))
+                                          "Couldn't parse Githubs JSON response")));
             }
         } else {
-            return Ok(Response::with((status::NotFound, format!("Couldn't find on github {}", &github_url))))
+            return Ok(Response::with((status::NotFound,
+                                      format!("Couldn't find on github {}", &github_url))));
         }
 
 
@@ -116,17 +125,16 @@ fn redir(url: &Url, source_url: &iUrl) -> IronResult<Response> {
             if let Some(ref query) = source_url.query {
                 redir_url.query = Some(query.clone());
             }
-            Ok(Response::with((status::TemporaryRedirect,
-                               Redirect(redir_url))))
-        },
-        Err(err) => Ok(Response::with((status::InternalServerError, err)))
+            Ok(Response::with((status::TemporaryRedirect, Redirect(redir_url))))
+        }
+        Err(err) => Ok(Response::with((status::InternalServerError, err))),
     }
 }
 
 fn get_redis_redir(redis: &redis::Connection, key: &str) -> Option<Url> {
-    let result : Option<String> = get_redis_value(redis, key);
-    if result.is_some(){
-        if let Ok(url) = Url::parse(&result.unwrap()){
+    let result: Option<String> = get_redis_value(redis, key);
+    if result.is_some() {
+        if let Ok(url) = Url::parse(&result.unwrap()) {
             return Some(url);
         }
     }
@@ -138,9 +146,9 @@ fn get_redis_value(redis: &redis::Connection, key: &str) -> Option<String> {
 
     let cached_result = redis.get(key);
 
-    if cached_result.is_ok(){
-        let cached_value : Option<String>  = cached_result.unwrap();
-        if cached_value.is_some(){
+    if cached_result.is_ok() {
+        let cached_value: Option<String> = cached_result.unwrap();
+        if cached_value.is_some() {
             return cached_value;
         }
     }
@@ -152,9 +160,9 @@ fn fetch(client: &Client, url: &str) -> Option<String> {
     let res = client.get(url)
                     .header(header::UserAgent("Clippy".to_owned()))
                     .header(header::Connection::close());
-    if  let Ok(mut res) = res.send() {
+    if let Ok(mut res) = res.send() {
         let mut body = String::new();
-        if res.read_to_string(&mut body).is_ok(){
+        if res.read_to_string(&mut body).is_ok() {
             return Some(body);
         }
     }
@@ -162,12 +170,12 @@ fn fetch(client: &Client, url: &str) -> Option<String> {
     return None;
 }
 
-fn setup_redis() -> redis::Connection<> {
-    let url = redis::parse_redis_url(
-            &env::var("REDIS_URL").unwrap_or("redis://redis/".to_string())
-        ).unwrap();
-    redis::Client::open(url
-            ).unwrap(
-            ).get_connection(
-            ).unwrap()
+fn setup_redis() -> redis::Connection {
+    let url = redis::parse_redis_url(&env::var("REDIS_URL")
+                                          .unwrap_or("redis://redis/".to_string()))
+                  .unwrap();
+    redis::Client::open(url)
+        .unwrap()
+        .get_connection()
+        .unwrap()
 }

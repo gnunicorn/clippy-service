@@ -1,5 +1,7 @@
 # Clippy
 
+[![](https://img.shields.io/badge/Code%20Style-rustfmt-brightgreen.svg?style=flat-square)](https://github.com/rust-lang-nursery/rustfmt#configuring-rustfmt)
+
 ## Documentation
 
 Clippy has inline source code annotations and uses "doccu" to render those into webpages. To update the rendered HTML to the latest version please run doccu  from the `app/` as follows:
