@@ -1,11 +1,16 @@
 extern crate iron;
-#[macro_use]
-extern crate router;
 extern crate staticfile;
 extern crate redis;
 extern crate rustc_serialize;
 extern crate hyper;
 extern crate url;
+
+#[macro_use] extern crate router;
+
+
+// for logging
+#[macro_use] extern crate log;
+extern crate env_logger;
 
 use std::path::Path;
 use std::io::Read;
@@ -29,6 +34,8 @@ use router::Router;
 use redis::Commands;
 
 fn main() {
+    // setup logger
+    env_logger::init().unwrap();
 
     let router = router!(
         get "/github/:user/:repo/:branch/badge.svg" => github_handler,
@@ -36,7 +43,7 @@ fn main() {
         get "/" => Static::new(Path::new("static"))
     );
 
-    println!("Check out 8080");
+    warn!("Server running at 8080");
     Iron::new(router).http("0.0.0.0:8080").unwrap();
 
     fn github_handler(req: &mut Request) -> IronResult<Response> {
@@ -77,17 +84,18 @@ fn main() {
                     // let resp = format!("There shall be content here for {}", key);
                     return redir(&Url::parse(&linting_url).unwrap(), &req.url);
                 } else {
-                   return Ok(Response::with((status::InternalServerError,
-                                             format!("SHA not found in JSON: {}", &json))))
+                    warn!("{}: SHA not found in JSON: {}",
+                          &github_url, &json);
+                    return Ok(Response::with((status::NotFound, format!("Couldn't find on github {}", &github_url))))
                }
             } else {
-               return Ok(Response::with((status::InternalServerError,
-                                         format!("Couldn't parse Githubs JSON response: {}", &body))))
+                warn!("{}: Couldn't parse Githubs JSON response: {}",
+                      &github_url, &body);
+                return Ok(Response::with((status::InternalServerError,
+                                          "Couldn't parse Githubs JSON response")))
             }
         } else {
-           return Ok(Response::with((status::InternalServerError,
-                                     format!("Couldn't find on github {}", &github_url))))
-            // return Ok(Response::with(status::NotFound))
+            return Ok(Response::with((status::NotFound, format!("Couldn't find on github {}", &github_url))))
         }
 
 
