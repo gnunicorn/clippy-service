@@ -52,7 +52,7 @@ fn main() {
         // Create a client.
 
         if let Some(url) = get_redis_redir(&redis, &key){
-            return redir(&url);
+            return redir(&url, &req.url);
         }
 
         let hyper_client: Client = Client::new();
@@ -65,19 +65,17 @@ fn main() {
 
                     if let Some(url) = get_redis_redir(&redis, &sha_key) {
                         set_redis_cache(&redis, &key, &url.clone().serialize());
-                        return redir(&url);
+                        return redir(&url, &req.url);
                     }
 
-                    let linting_url = format!("https://img.shields.io/badge/clippy-linting-blue.{}", &ext);
+                    let linting_url = format!("https://img.shields.io/badge/clippy-linting-blue.{}?", &ext);
 
 
                     set_redis_cache(&redis, &sha_key, &linting_url);
                     set_redis_cache(&redis, &key, &linting_url);
 
-                    // we are building. sent the appropriate
-
                     // let resp = format!("There shall be content here for {}", key);
-                    return redir(&Url::parse(&linting_url).unwrap());
+                    return redir(&Url::parse(&linting_url).unwrap(), &req.url);
                 } else {
                    return Ok(Response::with((status::InternalServerError,
                                              format!("SHA not found in JSON: {}", &json))))
@@ -104,9 +102,15 @@ fn set_redis_cache(redis: &redis::Connection, key: &str, value: &str) {
         .execute(redis);
 }
 
-fn redir(url: &Url) -> IronResult<Response> {
+fn redir(url: &Url, source_url: &iUrl) -> IronResult<Response> {
     match iUrl::from_generic_url(url.clone()) {
-        Ok(redir_url) => Ok(Response::with((status::TemporaryRedirect, Redirect(redir_url)))),
+        Ok(mut redir_url) => {
+            if let Some(ref query) = source_url.query {
+                redir_url.query = Some(query.clone());
+            }
+            Ok(Response::with((status::TemporaryRedirect,
+                               Redirect(redir_url))))
+        },
         Err(err) => Ok(Response::with((status::InternalServerError, err)))
     }
 }
