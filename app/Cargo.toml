@@ -10,7 +10,10 @@ urlencoded = "*"
 logger ="*"
 router = "*"
 staticfile = "*"
-redis = "0.5.2"
+redis = "^0.5.2"
+rustc-serialize = "^0.3.18"
+hyper = "^0.7.2"
+url = "^0.5.5"
 
 [dependencies.bodyparser]
 # has no release yet...

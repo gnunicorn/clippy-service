@@ -3,11 +3,14 @@ name = "clippy-io"
 version = "0.1.0"
 dependencies = [
  "bodyparser 0.1.0 (git+https://github.com/iron/body-parser.git)",
+ "hyper 0.7.2 (registry+https://github.com/rust-lang/crates.io-index)",
  "iron 0.2.6 (registry+https://github.com/rust-lang/crates.io-index)",
  "logger 0.0.3 (registry+https://github.com/rust-lang/crates.io-index)",
  "redis 0.5.2 (registry+https://github.com/rust-lang/crates.io-index)",
  "router 0.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "rustc-serialize 0.3.18 (registry+https://github.com/rust-lang/crates.io-index)",
  "staticfile 0.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "url 0.5.5 (registry+https://github.com/rust-lang/crates.io-index)",
  "urlencoded 0.2.1 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
 
