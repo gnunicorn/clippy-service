@@ -1,3 +1,5 @@
+ #![feature(slice_concat_ext)]
+
 extern crate iron;
 extern crate staticfile;
 extern crate redis;
@@ -46,19 +48,25 @@ use hyper::header;
 use staticfile::Static;
 use router::Router;
 
+use std::slice::SliceConcatExt;
 use redis::{Commands, PipelineCommands, Value};
 
-struct ClippyResult {
-    failed: bool,
-    warnings: u32,
-    errors: u32
+pub enum ClippyState {
+    Running,
+    EndedFine,
+    EndedWithWarnings,
+    EndedWithErrors
 }
 
+struct ClippyResult {
+    state: ClippyState,
+    warnings: i32,
+    errors: i32,
+}
 
-static LINTING_BADGE_URL: &'static str = "https://img.shields.io/badge/clippy-linting-blue.";
+static LINTING_BADGE_URL: &'static str = "https://img.shields.io/badge/clippy-linting-blue";
 
-fn update_for_github(user: &str, repo: &str, sha: &str) -> Result<ClippyResult, &'static str> {
-    let redis: redis::Connection = setup_redis();
+fn update_for_github(redis: &redis::Connection, user: &str, repo: &str, sha: &str) -> Result<ClippyResult, &'static str> {
     let github_url = format!("https://github.com/{0}/{1}/archive/{2}.zip",
                              user,
                              repo,
@@ -72,7 +80,7 @@ fn update_for_github(user: &str, repo: &str, sha: &str) -> Result<ClippyResult, 
     // let result_key =  format!("result/{}", &base_key);
 
     // starting a log file
-    if let Ok(existing) = redis::transaction(&redis, &[log_key.clone(), badge_key.clone()], |pipe| {
+    if let Ok(existing) = redis::transaction(redis, &[log_key.clone(), badge_key.clone()], |pipe| {
         match redis.exists(badge_key.clone()) {
             Ok(Some(false)) => {
                 pipe.cmd("RPUSH")
@@ -91,7 +99,7 @@ fn update_for_github(user: &str, repo: &str, sha: &str) -> Result<ClippyResult, 
                         .arg(badge_key.clone())
                         .arg(300)
                         .ignore()
-                    .execute(&redis);
+                    .execute(redis);
                 return Ok(Some(false));
                 },
             _ => Ok(Some(true))
@@ -99,20 +107,20 @@ fn update_for_github(user: &str, repo: &str, sha: &str) -> Result<ClippyResult, 
         if existing {
             // we have been alerted, the key already existed
             // so someone else is writing a log file. We should stop now.
-            return Err("Already running!");
+            return Ok(ClippyResult{state: ClippyState::Running, warnings: 0, errors: 0})
         }
     }
 
-    log_redis(&redis, &log_key, "Creating Temp Directory...");
+    log_redis(redis, &log_key, "Creating Temp Directory...");
 
     if let Ok(tmp_dir) = TempDir::new(&format!("github_{0}_{1}_{2}",
                                                 user,
                                                 repo,
                                                 sha)) {
-        log_redis(&redis, &log_key, &format!("Fetching {}", &github_url));
+        log_redis(redis, &log_key, &format!("Fetching {}", &github_url));
 
         if let Some(zip_body) = fetch(&Client::new(), &github_url) {
-            log_redis(&redis, &log_key, "Extracting archive");
+            log_redis(redis, &log_key, "Extracting archive");
             if let Ok(mut archive) = zip::ZipArchive::new(std::io::Cursor::new(zip_body)) {
                 for i in 0..archive.len()
                 {
@@ -127,27 +135,27 @@ fn update_for_github(user: &str, repo: &str, sha: &str) -> Result<ClippyResult, 
                     writer.write(&buffer).unwrap();
                 }
 
-                log_redis(&redis, &log_key, "Running clippy.");
+                log_redis(redis, &log_key, "Running clippy.");
 
                 let output = Command::new("cargo").args(&["rustc", "--", "-Zunstable-options", "-Zextra-plugins=clippy", "-Zno-trans", "-lclippy", "--error-format=json"])
                                       .current_dir(&tmp_dir.path())
                                       .output()
                                       .unwrap_or_else(|e| {
-                                          log_redis(&redis, &log_key,
+                                          log_redis(redis, &log_key,
                                                     &format!("Clippy execution failed: {}", &e));
                                           panic!("Failed to execute clippy: {}", e);
                                       });
                 Err("Not Yet Implemented")
             } else {
-                log_redis(&redis, &log_key, "Extracting archive failed.");
+                log_redis(redis, &log_key, "Extracting archive failed.");
                 Err("Extracting archive failed.")
             }
         } else {
-            log_redis(&redis, &log_key, "Fetching from github failed!");
+            log_redis(redis, &log_key, "Fetching from github failed!");
             Err("Fetching from github failed!")
         }
     } else {
-        log_redis(&redis, &log_key, "Creating Temp Directory failed");
+        log_redis(redis, &log_key, "Creating Temp Directory failed");
         Err("Creating Temp Directory failed")
     }
 }
@@ -157,8 +165,22 @@ fn trigger_update(user: &str, repo: &str, sha: &str){
     let user = user.to_owned();
     let repo = repo.to_owned();
     let sha = sha.to_owned();
+    let redis_key = format!("result/github/{0}/{1}:{2}",
+                            user,
+                            repo,
+                            sha).to_owned();
+
     thread::spawn(move || {
-        update_for_github(&user, &repo, &sha);
+        let redis: redis::Connection = setup_redis();
+        let _ = match update_for_github(&redis, &user, &repo, &sha) {
+            Ok(result) => redis.set(redis_key, match result.state {
+                ClippyState::Running => "running".to_owned(),
+                ClippyState::EndedFine => "success".to_owned(),
+                ClippyState::EndedWithWarnings => "warnings".to_owned(),
+                ClippyState::EndedWithErrors => "errors".to_owned()
+            }).unwrap(),
+            _ => redis.set(redis_key, "failed".to_owned()).unwrap()
+        };
     });
 
 }
@@ -178,6 +200,8 @@ fn main() {
     Iron::new(router).http("0.0.0.0:8080").unwrap();
 
     fn github_finder(req: &mut Request) -> IronResult<Response> {
+
+        // expand a branch name into the hash, keep the redirect for 5min
 
         let ref router = req.extensions.get::<Router>().unwrap();
         let redis: redis::Connection = setup_redis();
@@ -250,10 +274,10 @@ fn main() {
         let sha = router.find("sha").unwrap();
         let filename: Vec<&str> = router.find("method")
                                         .unwrap_or("badge.svg")
-                                        .rsplitn(1, '.')
+                                        .rsplitn(2, '.')
                                         .collect();
         let (method, ext) = match filename.len() {
-            2 => (filename[0], filename[1]),
+            2 => (filename[1], filename[0]),
             _ => (filename[0], "")
         };
 
@@ -279,19 +303,40 @@ fn main() {
                     }
                 }
             },
-            // "logs" => {
-            //     return Ok(Response::with((status::InternalServerError,
-            //                        "Not Yet Implemented")));
-            //
-            // }
-            // "status" => {
-            //     return Ok(Response::with((status::InternalServerError,
-            //                        "Not Yet Implemented")));
-            //
-            // }
+            "log" => {
+                if let Ok(Some(Value::Bulk(logs))) = redis.lrange(redis_key.to_owned(), 0, -1) {
+                    // let logs: Vec<Value::Data> = logs;
+                    let logs: Vec<String> = logs.iter().map(|ref v| {
+                        match *v {
+                            &Value::Data(ref val) => String::from_utf8(val.to_owned()).unwrap().to_owned(),
+                            _ => "".to_owned()
+                        }
+                    }).collect();
+                    return Ok(Response::with((status::Ok, logs.join("\n"))));
+                } else {
+                    trigger_update(&user, &repo, &sha);
+                    return Ok(Response::with((status::Created,
+                                   "Build scheduled. Please refresh to see logs.")));
+                }
+            }
+            "status" => {
+                let redis_key = format!("result/github/{0}/{1}:{2}",
+                                        user,
+                                        repo,
+                                        sha).to_owned();
+
+                match redis.get(redis_key.to_owned()) {
+                    Ok(Some(Value::Data(status))) => Ok(Response::with((status::Ok,
+                                                                        String::from_utf8(status).unwrap().to_owned()))),
+                    _ => {
+                        trigger_update(&user, &repo, &sha);
+                        Ok(Response::with((status::Created,"running")))
+                    }
+                }
+            }
             _ => {
-                return Ok(Response::with((status::InternalServerError,
-                                   "Not Yet Implemented")));
+                return Ok(Response::with((status::BadRequest,
+                                   format!("Not Yet Implemented: {}", method))));
             }
         }
     }
