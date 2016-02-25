@@ -18,16 +18,13 @@ extern crate router;
 extern crate log;
 extern crate env_logger;
 
-use std::fs::create_dir_all;
 use std::fs::File;
 use std::path::Path;
-use std::io::{Read, Cursor, Result as ioResult, Write};
+use std::io::{Read, Cursor, Write};
 use std::fs;
-use std::u8;
 use std::vec::Vec;
 use std::env;
 use std::thread;
-use std::sync::mpsc;
 use std::process::Command;
 use tempdir::TempDir;
 use time::now_utc;
@@ -86,7 +83,7 @@ fn update_for_github(redis: &redis::Connection, user: &str, repo: &str, sha: &st
                 pipe.cmd("RPUSH")
                         .arg(log_key.clone())
                         .arg(format!("{0} started processing github/{1}/{2}:{3}",
-                                            time::now_utc().rfc3339(),
+                                            now_utc().rfc3339(),
                                             user,
                                             repo,
                                             sha))
@@ -165,22 +162,46 @@ fn trigger_update(user: &str, repo: &str, sha: &str){
     let user = user.to_owned();
     let repo = repo.to_owned();
     let sha = sha.to_owned();
-    let redis_key = format!("result/github/{0}/{1}:{2}",
+    let base_key = format!("github/{0}/{1}:{2}",
                             user,
                             repo,
                             sha).to_owned();
 
+    let result_key = format!("result/{}", base_key).to_owned();
+    let badge_key = format!("badge/{}", base_key).to_owned();
+
     thread::spawn(move || {
         let redis: redis::Connection = setup_redis();
-        let _ = match update_for_github(&redis, &user, &repo, &sha) {
-            Ok(result) => redis.set(redis_key, match result.state {
-                ClippyState::Running => "running".to_owned(),
-                ClippyState::EndedFine => "success".to_owned(),
-                ClippyState::EndedWithWarnings => "warnings".to_owned(),
-                ClippyState::EndedWithErrors => "errors".to_owned()
-            }).unwrap(),
-            _ => redis.set(redis_key, "failed".to_owned()).unwrap()
+        let (text, color) : (String, &str) = match update_for_github(&redis, &user, &repo, &sha) {
+            Ok(result) => {
+                match result.state {
+                    ClippyState::Running => (String::from("linting"), "blue"),
+                    ClippyState::EndedFine => (String::from("success"), "brightgreen"),
+                    ClippyState::EndedWithWarnings => (
+                            format!("{0} warnings", result.warnings),
+                            match result.warnings {
+                                1...5 => "yellowgreen",
+                                5...10 => "yellow",
+                                10...50 => "orange",
+                                _ => "red"
+                            }),
+                    ClippyState::EndedWithErrors => (
+                            format!("{0} errors", result.errors),
+                            "red")
+                }
+            },
+            _ => (String::from("failed"), "red")
         };
+        redis::pipe()
+            .cmd("SET")
+                .arg(result_key)
+                .arg(text.clone())
+                .ignore()
+            .cmd("SET")
+                .arg(badge_key)
+                .arg(format!("https://img.shields.io/badge/clippy-{}-{}", text, color))
+                .ignore()
+            .execute(&redis);
     });
 
 }
@@ -347,7 +368,7 @@ fn log_redis(redis: &redis::Connection, key: &str, value: &str) {
         .cmd("RPUSH")
             .arg(key.clone())
             .arg(format!("{0} {1}",
-                         time::now_utc().rfc3339(),
+                         now_utc().rfc3339(),
                          value))
             .ignore()
         .execute(redis);
