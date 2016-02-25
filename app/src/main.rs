@@ -22,6 +22,7 @@ use std::path::Path;
 use std::io::{Read, Cursor, Result as ioResult, Write};
 use std::fs;
 use std::u8;
+use std::vec::Vec;
 use std::env;
 use std::thread;
 use std::sync::mpsc;
@@ -45,7 +46,7 @@ use hyper::header;
 use staticfile::Static;
 use router::Router;
 
-use redis::{Commands, PipelineCommands};
+use redis::{Commands, PipelineCommands, Value};
 
 struct ClippyResult {
     failed: bool,
@@ -53,20 +54,26 @@ struct ClippyResult {
     errors: u32
 }
 
+
+static LINTING_BADGE_URL: &'static str = "https://img.shields.io/badge/clippy-linting-blue.";
+
 fn update_for_github(user: &str, repo: &str, sha: &str) -> Result<ClippyResult, &'static str> {
     let redis: redis::Connection = setup_redis();
     let github_url = format!("https://github.com/{0}/{1}/archive/{2}.zip",
                              user,
                              repo,
                              sha);
-    let log_key =  format!("log/github/{0}/{1}:{2}",
+    let base_key = format!("github/{0}/{1}:{2}",
                              user,
                              repo,
                              sha);
+    let log_key =  format!("log/{}", &base_key);
+    let badge_key =  format!("badge/{}", &base_key);
+    // let result_key =  format!("result/{}", &base_key);
 
     // starting a log file
-    if let Ok(existing) = redis::transaction(&redis, &[log_key.clone()], |pipe| {
-        match redis.exists(log_key.clone()) {
+    if let Ok(existing) = redis::transaction(&redis, &[log_key.clone(), badge_key.clone()], |pipe| {
+        match redis.exists(badge_key.clone()) {
             Ok(Some(false)) => {
                 pipe.cmd("RPUSH")
                         .arg(log_key.clone())
@@ -76,7 +83,15 @@ fn update_for_github(user: &str, repo: &str, sha: &str) -> Result<ClippyResult, 
                                             repo,
                                             sha))
                         .ignore()
-                        .execute(&redis);
+                    .cmd("SET")
+                        .arg(badge_key.clone())
+                        .arg(LINTING_BADGE_URL)
+                        .ignore()
+                    .cmd("EXPIRE")
+                        .arg(badge_key.clone())
+                        .arg(300)
+                        .ignore()
+                    .execute(&redis);
                 return Ok(Some(false));
                 },
             _ => Ok(Some(true))
@@ -137,18 +152,93 @@ fn update_for_github(user: &str, repo: &str, sha: &str) -> Result<ClippyResult, 
     }
 }
 
+fn trigger_update(user: &str, repo: &str, sha: &str){
+
+    let user = user.to_owned();
+    let repo = repo.to_owned();
+    let sha = sha.to_owned();
+    thread::spawn(move || {
+        update_for_github(&user, &repo, &sha);
+    });
+
+}
+
 fn main() {
     // setup logger
     env_logger::init().unwrap();
 
     let router = router!(
-        get "/github/:user/:repo/:branch/badge.svg" => github_handler,
-        get "/github/:user/:repo/badge.svg" => github_handler,
+        get "/github/sha/:user/:repo/:sha/:method" => github_handler,
+        get "/github/:user/:repo/:branch/:method" => github_finder,
+        get "/github/:user/:repo/:method" => github_finder,
         get "/" => Static::new(Path::new("static"))
     );
 
     warn!("Server running at 8080");
     Iron::new(router).http("0.0.0.0:8080").unwrap();
+
+    fn github_finder(req: &mut Request) -> IronResult<Response> {
+
+        let ref router = req.extensions.get::<Router>().unwrap();
+        let redis: redis::Connection = setup_redis();
+        let hyper_client: Client = Client::new();
+
+        let user = router.find("user").unwrap();
+        let repo = router.find("repo").unwrap();
+        let branch = router.find("branch").unwrap_or("master");
+        let method = router.find("method").unwrap_or("badge.svg");
+
+        let redis_key = format!("cached-sha/github/{0}/{1}:{2}", user, repo, branch);
+        let mut target_url = req.url.clone().into_generic_url().to_owned();
+
+        match redis.get(redis_key.to_owned()){
+            // we have a cached value, redirect directly
+            Ok(Value::Data(sha)) =>{
+                {
+                    let mut path = target_url.path_mut().unwrap();
+                    path.clear();
+                    path.extend_from_slice(&["github".to_owned(), "sha".to_owned(), user.to_owned(), repo.to_owned(), String::from_utf8(sha).unwrap().to_owned(), method.to_owned()]);
+                }
+                return redir(&target_url, &req.url);
+            },
+            _ => {
+                let github_url = format!("https://api.github.com/repos/{0}/{1}/git/refs/heads/{2}",
+                                         user,
+                                         repo,
+                                         branch);
+                if let Some(body) = fetch(&hyper_client, &github_url) {
+                    if let Ok(json) = Json::from_str(&body) {
+                        if let Some(&Json::String(ref sha)) = json.find_path(&["object", "sha"]) {
+                            {
+                                let mut path = target_url.path_mut().unwrap();
+                                path.clear();
+                                path.extend_from_slice(&["github".to_owned(), "sha".to_owned(), user.to_owned(), repo.to_owned(), sha.to_string().to_owned(), method.to_owned()]);
+                            }
+                            set_redis_cache(&redis, &redis_key, &target_url.serialize());
+                            return redir(&target_url, &req.url);
+
+                        } else {
+                            warn!("{}: SHA not found in JSON: {}", &github_url, &json);
+                            return Ok(Response::with((status::NotFound,
+                                                      format!("Couldn't find on Github {}", &github_url))));
+                        }
+                    } else {
+                        warn!("{}: Couldn't parse Githubs JSON response: {}",
+                              &github_url,
+                              &body);
+                        return Ok(Response::with((status::InternalServerError,
+                                                  "Couldn't parse Githubs JSON response")));
+                    }
+                } else {
+                    return Ok(Response::with((status::NotFound,
+                                              format!("Couldn't find on Github {}", &github_url))));
+                }
+                Ok(Response::with(status::InternalServerError))
+
+            }
+        }
+    }
+
 
     fn github_handler(req: &mut Request) -> IronResult<Response> {
 
@@ -157,70 +247,53 @@ fn main() {
 
         let user = router.find("user").unwrap();
         let repo = router.find("repo").unwrap();
-        let branch = router.find("branch").unwrap_or("master");
-        let ext = router.find("ext").unwrap_or("svg");
-        let key = format!("badge/github/{}/{}:{}", user, repo, branch);
+        let sha = router.find("sha").unwrap();
+        let filename: Vec<&str> = router.find("method")
+                                        .unwrap_or("badge.svg")
+                                        .rsplitn(1, '.')
+                                        .collect();
+        let (method, ext) = match filename.len() {
+            2 => (filename[0], filename[1]),
+            _ => (filename[0], "")
+        };
 
+        let redis_key = format!("{0}/github/{1}/{2}:{3}", method, user, repo, sha);
 
-        // Create a client.
-
-        if let Some(url) = get_redis_redir(&redis, &key) {
-            return redir(&url, &req.url);
-        }
-
-        let hyper_client: Client = Client::new();
-
-        let github_url = format!("https://api.github.com/repos/{0}/{1}/git/refs/heads/{2}",
-                                 user,
-                                 repo,
-                                 branch);
-        if let Some(body) = fetch(&hyper_client, &github_url) {
-            if let Ok(json) = Json::from_str(&body) {
-                if let Some(sha) = json.find_path(&["object", "sha"]) {
-                    let sha_key = format!("badge/github/{}/{}:{} ", user, repo, sha);
-
-                    if let Some(url) = get_redis_redir(&redis, &sha_key) {
-                        set_redis_cache(&redis, &key, &url.clone().serialize());
-                        return redir(&url, &req.url);
+        match method {
+            "badge" => {
+                // if this is a badge, then we might have a cached version
+                match redis.get(redis_key.to_owned()){
+                    Ok(Some(Value::Data(base_url))) => {
+                        let base_url = String::from_utf8(base_url).unwrap().to_owned();
+                        let target_badge = match req.url.clone().query {
+                            Some(query) => format!("{}.{}?{}", base_url, ext, query),
+                            _ => format!("{}.{}", base_url, ext)
+                        };
+                        Ok(Response::with((status::TemporaryRedirect,
+                                           Redirect(iUrl::parse(&target_badge).unwrap()))))
+                    },
+                    _ => {
+                        trigger_update(&user, &repo, &sha);
+                        let target_badge = format!("{}.{}", LINTING_BADGE_URL, ext);
+                        return redir(&Url::parse(&target_badge).unwrap(), &req.url);
                     }
-
-                    let linting_url = format!("https://img.shields.io/badge/clippy-linting-blue.\
-                                               {}?",
-                                              &ext);
-
-
-                    set_redis_cache(&redis, &sha_key, &linting_url);
-                    set_redis_cache(&redis, &key, &linting_url);
-
-
-                    let user = user.to_owned();
-                    let repo =repo.to_owned();
-                    let sha = sha.to_string().to_owned();
-                    thread::spawn(move || {
-                        update_for_github(&user, &repo, &sha);
-                    });
-
-                    // let resp = format!("There shall be content here for {}", key);
-                    return redir(&Url::parse(&linting_url).unwrap(), &req.url);
-                } else {
-                    warn!("{}: SHA not found in JSON: {}", &github_url, &json);
-                    return Ok(Response::with((status::NotFound,
-                                              format!("Couldn't find on github {}", &github_url))));
                 }
-            } else {
-                warn!("{}: Couldn't parse Githubs JSON response: {}",
-                      &github_url,
-                      &body);
+            },
+            // "logs" => {
+            //     return Ok(Response::with((status::InternalServerError,
+            //                        "Not Yet Implemented")));
+            //
+            // }
+            // "status" => {
+            //     return Ok(Response::with((status::InternalServerError,
+            //                        "Not Yet Implemented")));
+            //
+            // }
+            _ => {
                 return Ok(Response::with((status::InternalServerError,
-                                          "Couldn't parse Githubs JSON response")));
+                                   "Not Yet Implemented")));
             }
-        } else {
-            return Ok(Response::with((status::NotFound,
-                                      format!("Couldn't find on github {}", &github_url))));
         }
-
-
-        Ok(Response::with(status::InternalServerError))
     }
 }
 
@@ -252,29 +325,6 @@ fn redir(url: &Url, source_url: &iUrl) -> IronResult<Response> {
         }
         Err(err) => Ok(Response::with((status::InternalServerError, err))),
     }
-}
-
-fn get_redis_redir(redis: &redis::Connection, key: &str) -> Option<Url> {
-    let result: Option<String> = get_redis_value(redis, key);
-    if result.is_some() {
-        if let Ok(url) = Url::parse(&result.unwrap()) {
-            return Some(url);
-        }
-    }
-    return None;
-}
-
-
-fn get_redis_value(redis: &redis::Connection, key: &str) -> Option<String> {
-
-    if let Ok(Some(cached_result)) = redis.get(key) {
-        let cached_value: Option<String> = cached_result;
-        if cached_value.is_some() {
-            return cached_value;
-        }
-    }
-
-    return None;
 }
 
 fn fetch(client: &Client, url: &str) -> Option<String> {
