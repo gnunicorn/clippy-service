@@ -23,6 +23,8 @@ use std::io::{Read, Cursor, Result as ioResult, Write};
 use std::fs;
 use std::u8;
 use std::env;
+use std::thread;
+use std::sync::mpsc;
 use std::process::Command;
 use tempdir::TempDir;
 use time::now_utc;
@@ -151,13 +153,15 @@ fn main() {
     fn github_handler(req: &mut Request) -> IronResult<Response> {
 
         let ref router = req.extensions.get::<Router>().unwrap();
+        let redis: redis::Connection = setup_redis();
+
         let user = router.find("user").unwrap();
         let repo = router.find("repo").unwrap();
         let branch = router.find("branch").unwrap_or("master");
         let ext = router.find("ext").unwrap_or("svg");
         let key = format!("badge/github/{}/{}:{}", user, repo, branch);
 
-        let redis: redis::Connection = setup_redis();
+
         // Create a client.
 
         if let Some(url) = get_redis_redir(&redis, &key) {
@@ -187,6 +191,14 @@ fn main() {
 
                     set_redis_cache(&redis, &sha_key, &linting_url);
                     set_redis_cache(&redis, &key, &linting_url);
+
+
+                    let user = user.to_owned();
+                    let repo =repo.to_owned();
+                    let sha = sha.to_string().to_owned();
+                    thread::spawn(move || {
+                        update_for_github(&user, &repo, &sha);
+                    });
 
                     // let resp = format!("There shall be content here for {}", key);
                     return redir(&Url::parse(&linting_url).unwrap(), &req.url);
