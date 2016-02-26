@@ -18,6 +18,7 @@ env_logger = "^0.3"
 time = "^0.1"
 tempdir = "^0.3.4"
 zip = "^0.1.6"
+mime = "*"
 
 [dependencies.bodyparser]
 # has no release yet...

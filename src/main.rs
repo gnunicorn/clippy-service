@@ -13,6 +13,9 @@ extern crate zip;
 #[macro_use]
 extern crate router;
 
+#[macro_use]
+extern crate mime;
+
 // for logging
 #[macro_use]
 extern crate log;
@@ -22,6 +25,7 @@ use std::fs::File;
 use std::path::Path;
 use std::io::{Read, Cursor, Write};
 use std::fs;
+use std::u8;
 use std::vec::Vec;
 use std::env;
 use std::thread;
@@ -39,7 +43,9 @@ use iron::Url as iUrl;
 
 use url::Url;
 
-use hyper::Client;
+use hyper::client::{Client, RedirectPolicy};
+use hyper::header::{Headers, Accept, qitem};
+use hyper::mime::{Mime, TopLevel, SubLevel};
 use hyper::header;
 
 use staticfile::Static;
@@ -63,97 +69,103 @@ struct ClippyResult {
 
 static LINTING_BADGE_URL: &'static str = "https://img.shields.io/badge/clippy-linting-blue";
 
-fn update_for_github(redis: &redis::Connection, user: &str, repo: &str, sha: &str) -> Result<ClippyResult, &'static str> {
-    let github_url = format!("https://github.com/{0}/{1}/archive/{2}.zip",
-                             user,
-                             repo,
-                             sha);
-    let base_key = format!("github/{0}/{1}:{2}",
-                             user,
-                             repo,
-                             sha);
-    let log_key =  format!("log/{}", &base_key);
-    let badge_key =  format!("badge/{}", &base_key);
-    // let result_key =  format!("result/{}", &base_key);
+fn download_and_unzip(source_url: &str, tmp_dir: &TempDir) -> Result<Vec<String>, String> {
 
-    // starting a log file
-    if let Ok(existing) = redis::transaction(redis, &[log_key.clone(), badge_key.clone()], |pipe| {
-        match redis.exists(badge_key.clone()) {
-            Ok(Some(false)) => {
-                pipe.cmd("RPUSH")
-                        .arg(log_key.clone())
-                        .arg(format!("{0} started processing github/{1}/{2}:{3}",
-                                            now_utc().rfc3339(),
-                                            user,
-                                            repo,
-                                            sha))
-                        .ignore()
-                    .cmd("SET")
-                        .arg(badge_key.clone())
-                        .arg(LINTING_BADGE_URL)
-                        .ignore()
-                    .cmd("EXPIRE")
-                        .arg(badge_key.clone())
-                        .arg(300)
-                        .ignore()
-                    .execute(redis);
-                return Ok(Some(false));
+    let client = Client::new();
+    let res = client.get(&source_url.to_owned())
+                    .header(header::UserAgent("Clippy/0.1".to_owned()))
+                    .header(header::Accept(vec![qitem(mime!(_/_))]))
+                    .header(header::Connection::close());
+
+    match res.send() {
+        Ok(mut res) => {
+            let mut zip_body: Vec<u8> = Vec::new();
+            match res.read_to_end(&mut zip_body) {
+                Ok(_) => {
+                    match zip::ZipArchive::new(Cursor::new(zip_body)) {
+                        Ok(mut archive) => {
+                            let mut paths: Vec<String> = Vec::new();
+                            for i in 0..archive.len() {
+                                let mut zip_file = archive.by_index(i).unwrap();
+                                let extracted_path = tmp_dir.path().join(zip_file.name());
+                                let full_path = extracted_path.as_path();
+
+                                if zip_file.size() == 0 {
+                                    fs::create_dir_all(full_path);
+                                } else {
+                                    let mut writer = File::create(full_path).unwrap();
+                                    let mut buffer: Vec<u8> = vec![];
+                                    zip_file.read_to_end(&mut buffer).unwrap();
+                                    writer.write(&buffer).unwrap();
+                                    paths.push(String::from(full_path.to_string_lossy().into_owned()));
+                                }
+                            }
+                            Ok(paths)
+                        },
+                        Err(zip::result::ZipError::InvalidArchive(error)) | Err(zip::result::ZipError::UnsupportedArchive(error)) => Err(format!("Extracting archive failed: {}", error).to_owned()),
+                        Err(zip::result::ZipError::FileNotFound) => Err(String::from("Zip  Archive Corrupt")),
+                        Err(_) => Err(String::from("General IO Error"))
+                    }
                 },
-            _ => Ok(Some(true))
-        }}) {
-        if existing {
-            // we have been alerted, the key already existed
-            // so someone else is writing a log file. We should stop now.
-            return Ok(ClippyResult{state: ClippyState::Running, warnings: 0, errors: 0})
-        }
+                Err(error) => Err(format!("Couldn't read github response: {}", error))
+            }
+        },
+        Err(error) => Err(format!("Couldn't connect to github: {}", error))
     }
+}
 
-    log_redis(redis, &log_key, "Creating Temp Directory...");
+fn run_clippy(path: &Path) -> Result<ClippyResult, String> {
+    match Command::new("cargo")
+                .args(&["rustc", "--", "-Zunstable-options",
+                        "-Zextra-plugins=clippy", "-Zno-trans",
+                        "-lclippy", "--error-format=json"])
+                  .current_dir(path)
+                  .output() {
+        Ok(output) => {
+            if output.status.success() {
+                Ok(ClippyResult{state: ClippyState::EndedFine, warnings: 0, errors: 0})
+            } else {
+                Err(format!("Clippy failed with Error code: {}", output.status.code().unwrap_or(-999)))
+            }
+        },
+        Err(error) => Err(format!("Running Clippy failed: {}", error))
+    }
+}
 
-    if let Ok(tmp_dir) = TempDir::new(&format!("github_{0}_{1}_{2}",
+fn update_for_github<F>(user: &str, repo: &str, sha: &str, logger: F) -> Result<ClippyResult, String>
+    where F : Fn(&str) {
+    logger("Creating Temp Directory...");
+
+    if let Ok(temp_dir) = TempDir::new(&format!("github_{0}_{1}_{2}",
                                                 user,
                                                 repo,
                                                 sha)) {
-        log_redis(redis, &log_key, &format!("Fetching {}", &github_url));
 
-        if let Some(zip_body) = fetch(&Client::new(), &github_url) {
-            log_redis(redis, &log_key, "Extracting archive");
-            if let Ok(mut archive) = zip::ZipArchive::new(std::io::Cursor::new(zip_body)) {
-                for i in 0..archive.len()
-                {
-                    let mut zip_file = archive.by_index(i).unwrap();
-                    let full_path = tmp_dir.path().join(zip_file.name());
-                    let extracted_path = full_path.as_path();
-                    let mut writer = File::create(extracted_path).unwrap();
-                    let mut buffer: Vec<u8> = vec![];
+        let github_url = format!("https://codeload.github.com/{0}/{1}/zip/{2}",
+                                 user,
+                                 repo,
+                                 sha);
 
-                    fs::create_dir_all(extracted_path.parent().unwrap()).unwrap();
-                    zip_file.read_to_end(&mut buffer).unwrap();
-                    writer.write(&buffer).unwrap();
+
+        logger(&format!("Fetching {}", &github_url));
+        match download_and_unzip(&github_url, &temp_dir) {
+            Ok(files) => {
+                logger(&format!("Extracted: \n - {}", files.join("\n - ")));
+                match files.iter().find(|item| item.to_lowercase().ends_with("cargo.toml")) {
+                    Some(file) => {
+                        let path = Path::new(file);
+                        let parent_directory = path.parent().unwrap();
+                        logger(&format!("Cargo file found in {}", parent_directory .to_string_lossy().into_owned()));
+                        logger("Running Clippy there\n--------------------------------");
+                        run_clippy(parent_directory)
+                    }
+                    _ => Err(String::from("No Cargo.toml file found in Archive."))
                 }
-
-                log_redis(redis, &log_key, "Running clippy.");
-
-                let output = Command::new("cargo").args(&["rustc", "--", "-Zunstable-options", "-Zextra-plugins=clippy", "-Zno-trans", "-lclippy", "--error-format=json"])
-                                      .current_dir(&tmp_dir.path())
-                                      .output()
-                                      .unwrap_or_else(|e| {
-                                          log_redis(redis, &log_key,
-                                                    &format!("Clippy execution failed: {}", &e));
-                                          panic!("Failed to execute clippy: {}", e);
-                                      });
-                Err("Not Yet Implemented")
-            } else {
-                log_redis(redis, &log_key, "Extracting archive failed.");
-                Err("Extracting archive failed.")
-            }
-        } else {
-            log_redis(redis, &log_key, "Fetching from github failed!");
-            Err("Fetching from github failed!")
+            },
+            Err(err) => Err(err)
         }
     } else {
-        log_redis(redis, &log_key, "Creating Temp Directory failed");
-        Err("Creating Temp Directory failed")
+        Err(String::from("Creating Temp Directory failed"))
     }
 }
 
@@ -168,11 +180,48 @@ fn trigger_update(user: &str, repo: &str, sha: &str){
                             sha).to_owned();
 
     let result_key = format!("result/{}", base_key).to_owned();
+    let log_key = format!("log/{}", base_key).to_owned();
     let badge_key = format!("badge/{}", base_key).to_owned();
 
     thread::spawn(move || {
         let redis: redis::Connection = setup_redis();
-        let (text, color) : (String, &str) = match update_for_github(&redis, &user, &repo, &sha) {
+        let logger = |statement: &str| log_redis(&redis, &log_key, statement);
+
+        // let's make sure we are the first to run here,
+        // otherwise, exit the thread preemptively
+        if let Ok(existing) = redis::transaction(&redis, &[log_key.clone(), badge_key.clone()], |pipe| {
+            match redis.exists(badge_key.clone()) {
+                Ok(Some(false)) => {
+                    pipe.cmd("RPUSH")
+                            .arg(log_key.clone())
+                            .arg(format!("{0} started processing github/{1}/{2}:{3}",
+                                                now_utc().rfc3339(),
+                                                user,
+                                                repo,
+                                                sha))
+                            .ignore()
+                        .cmd("SET")
+                            .arg(badge_key.clone())
+                            .arg(LINTING_BADGE_URL)
+                            .ignore()
+                        .cmd("EXPIRE")
+                            .arg(badge_key.clone())
+                            .arg(300)
+                            .ignore()
+                        .execute(&redis);
+                    return Ok(Some(false));
+                    },
+                _ => Ok(Some(true))
+            }}) {
+            if existing {
+                // we have been alerted, the key already existed
+                // so someone else is writing a log file. We should stop now.
+                return;
+            }
+        }
+
+
+        let (text, color) : (String, &str) = match update_for_github(&user, &repo, &sha, logger) {
             Ok(result) => {
                 match result.state {
                     ClippyState::Running => (String::from("linting"), "blue"),
@@ -190,7 +239,10 @@ fn trigger_update(user: &str, repo: &str, sha: &str){
                             "red")
                 }
             },
-            _ => (String::from("failed"), "red")
+            Err(error) => {
+                log_redis(&redis, &log_key, &error);
+                (String::from("failed"), "red")
+            }
         };
         redis::pipe()
             .cmd("SET")
@@ -395,7 +447,8 @@ fn redir(url: &Url, source_url: &iUrl) -> IronResult<Response> {
 
 fn fetch(client: &Client, url: &str) -> Option<String> {
     let res = client.get(url)
-                    .header(header::UserAgent("Clippy".to_owned()))
+                    .header(header::UserAgent("Clippy/0.1".to_owned()))
+                    .header(header::Accept(vec![qitem(mime!(_/_))]))
                     .header(header::Connection::close());
     if let Ok(mut res) = res.send() {
         let mut body = String::new();
@@ -403,7 +456,6 @@ fn fetch(client: &Client, url: &str) -> Option<String> {
             return Some(body);
         }
     }
-
     return None;
 }
 
