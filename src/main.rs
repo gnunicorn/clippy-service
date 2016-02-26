@@ -27,6 +27,7 @@ use iron::prelude::*;
 use staticfile::Static;
 
 mod handlers;
+mod helpers;
 
 fn main() {
     // setup logger
