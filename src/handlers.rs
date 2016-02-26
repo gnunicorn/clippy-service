@@ -20,7 +20,6 @@ use std::fs::File;
 use std::path::Path;
 use std::io::{Read, Cursor, Write};
 use std::fs;
-use std::u8;
 use std::vec::Vec;
 use std::env;
 use std::thread;
@@ -38,19 +37,16 @@ use iron::Url as iUrl;
 
 use url::Url;
 
-use hyper::client::{Client, RedirectPolicy};
-use hyper::header::{Headers, Accept, qitem};
-use hyper::mime::{Mime, TopLevel, SubLevel};
+use hyper::client::Client;
+use hyper::header::qitem;
 use hyper::header;
 
-use staticfile::Static;
 use router::Router;
 
 use std::slice::SliceConcatExt;
 use redis::{Commands, PipelineCommands, Value};
 
 pub enum ClippyState {
-    Running,
     EndedFine,
     EndedWithWarnings,
     EndedWithErrors
@@ -151,7 +147,7 @@ fn run_clippy<F>(path: &Path, logger: F) -> Result<ClippyResult, String>
                     (0, x) => Ok(ClippyResult{state: ClippyState::EndedWithWarnings,
                                         warnings: x,
                                         errors: 0}),
-                    _ => Ok(ClippyResult{state: ClippyState::EndedWithWarnings,
+                    _ => Ok(ClippyResult{state: ClippyState::EndedWithErrors,
                                         warnings: warnings,
                                         errors: errors})
                 }
@@ -255,7 +251,6 @@ fn trigger_update(user: &str, repo: &str, sha: &str){
         let (text, color) : (String, &str) = match update_for_github(&user, &repo, &sha, logger) {
             Ok(result) => {
                 match result.state {
-                    ClippyState::Running => (String::from("linting"), "blue"),
                     ClippyState::EndedFine => (String::from("success"), "brightgreen"),
                     ClippyState::EndedWithWarnings => (
                             format!("{0} warnings", result.warnings),

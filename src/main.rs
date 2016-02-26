@@ -22,38 +22,9 @@ extern crate mime;
 extern crate log;
 extern crate env_logger;
 
-use std::fs::File;
 use std::path::Path;
-use std::io::{Read, Cursor, Write};
-use std::fs;
-use std::u8;
-use std::vec::Vec;
-use std::env;
-use std::thread;
-use std::process::Command;
-use tempdir::TempDir;
-use time::now_utc;
-use zip::*;
-
-use rustc_serialize::json::Json;
-
-use iron::modifiers::Redirect;
 use iron::prelude::*;
-use iron::status;
-use iron::Url as iUrl;
-
-use url::Url;
-
-use hyper::client::{Client, RedirectPolicy};
-use hyper::header::{Headers, Accept, qitem};
-use hyper::mime::{Mime, TopLevel, SubLevel};
-use hyper::header;
-
 use staticfile::Static;
-use router::Router;
-
-use std::slice::SliceConcatExt;
-use redis::{Commands, PipelineCommands, Value};
 
 mod handlers;
 
