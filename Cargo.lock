@@ -1,5 +1,5 @@
 [root]
-name = "clippy-io"
+name = "clippy_service"
 version = "0.1.0"
 dependencies = [
  "bodyparser 0.1.0 (git+https://github.com/iron/body-parser.git)",
