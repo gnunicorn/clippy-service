@@ -93,7 +93,7 @@ pub fn schedule_update(user: &str, repo: &str, sha: &str){
                             .arg(300)
                             .ignore()
                         .execute(&redis);
-                    return Ok(Some(false));
+                    Ok(Some(false))
                     },
                 _ => Ok(Some(true))
             }}) {

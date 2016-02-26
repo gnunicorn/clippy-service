@@ -120,7 +120,7 @@ pub fn fetch(client: &Client, url: &str) -> Option<String> {
             return Some(body);
         }
     }
-    return None;
+    None
 }
 
 pub fn setup_redis() -> redis::Connection {

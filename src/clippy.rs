@@ -34,8 +34,8 @@ pub fn run<F>(path: &Path, logger: F) -> Result<ClippyResult, String>
             let mut warnings = 0;
             let mut errors = 0;
             let messages: Vec<String> = String::from_utf8(output.stderr)
-                                  .unwrap_or(String::from(""))
-                                  .split("\n")
+                                  .unwrap()
+                                  .split('\n')
                                   .filter_map(|line| Json::from_str(&line).ok())
                                   .filter_map(|json| {
                                       let obj = json.as_object().unwrap();

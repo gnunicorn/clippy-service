@@ -33,7 +33,7 @@ pub fn github_finder(req: &mut Request) -> IronResult<Response> {
 
     // expand a branch name into the hash, keep the redirect for 5min
 
-    let ref router = req.extensions.get::<Router>().unwrap();
+    let router = req.extensions.get::<Router>().unwrap();
     let redis: redis::Connection = setup_redis();
     let hyper_client: Client = Client::new();
 
@@ -53,7 +53,7 @@ pub fn github_finder(req: &mut Request) -> IronResult<Response> {
                 path.clear();
                 path.extend_from_slice(&["github".to_owned(), "sha".to_owned(), user.to_owned(), repo.to_owned(), String::from_utf8(sha).unwrap().to_owned(), method.to_owned()]);
             }
-            return redir(&target_url, &req.url);
+            redir(&target_url, &req.url)
         },
         _ => {
             let github_url = format!("https://api.github.com/repos/{0}/{1}/git/refs/heads/{2}",
@@ -66,29 +66,26 @@ pub fn github_finder(req: &mut Request) -> IronResult<Response> {
                         {
                             let mut path = target_url.path_mut().unwrap();
                             path.clear();
-                            path.extend_from_slice(&["github".to_owned(), "sha".to_owned(), user.to_owned(), repo.to_owned(), sha.to_string().to_owned(), method.to_owned()]);
+                            path.extend_from_slice(&["github".to_owned(), "sha".to_owned(), user.to_owned(), repo.to_owned(), sha.clone().to_owned(), method.to_owned()]);
                         }
                         set_redis_cache(&redis, &redis_key, &target_url.serialize());
-                        return redir(&target_url, &req.url);
-
+                        redir(&target_url, &req.url)
                     } else {
                         warn!("{}: SHA not found in JSON: {}", &github_url, &json);
-                        return Ok(Response::with((status::NotFound,
-                                                  format!("Couldn't find on Github {}", &github_url))));
+                        Ok(Response::with((status::NotFound,
+                                                  format!("Couldn't find on Github {}", &github_url))))
                     }
                 } else {
                     warn!("{}: Couldn't parse Githubs JSON response: {}",
                           &github_url,
                           &body);
-                    return Ok(Response::with((status::InternalServerError,
-                                              "Couldn't parse Githubs JSON response")));
+                    Ok(Response::with((status::InternalServerError,
+                                              "Couldn't parse Githubs JSON response")))
                 }
             } else {
-                return Ok(Response::with((status::NotFound,
-                                          format!("Couldn't find on Github {}", &github_url))));
+                Ok(Response::with((status::NotFound,
+                                          format!("Couldn't find on Github {}", &github_url))))
             }
-            Ok(Response::with(status::InternalServerError))
-
         }
     }
 }
@@ -96,7 +93,7 @@ pub fn github_finder(req: &mut Request) -> IronResult<Response> {
 
 pub fn github_handler(req: &mut Request) -> IronResult<Response> {
 
-    let ref router = req.extensions.get::<Router>().unwrap();
+    let router = req.extensions.get::<Router>().unwrap();
     let redis: redis::Connection = setup_redis();
 
     let user = router.find("user").unwrap();
@@ -129,23 +126,23 @@ pub fn github_handler(req: &mut Request) -> IronResult<Response> {
                 _ => {
                     schedule_github_update(&user, &repo, &sha);
                     let target_badge = format!("{}.{}", LINTING_BADGE_URL, ext);
-                    return redir(&Url::parse(&target_badge).unwrap(), &req.url);
+                    redir(&Url::parse(&target_badge).unwrap(), &req.url)
                 }
             }
         },
         "log" => {
             if let Ok(Some(Value::Bulk(logs))) = redis.lrange(redis_key.to_owned(), 0, -1) {
                 let logs: Vec<String> = logs.iter().map(|ref v| {
-                    match *v {
-                        &Value::Data(ref val) => String::from_utf8(val.to_owned()).unwrap().to_owned(),
+                    match **v {
+                        Value::Data(ref val) => String::from_utf8(val.to_owned()).unwrap().to_owned(),
                         _ => "".to_owned()
                     }
                 }).collect();
-                return Ok(Response::with((status::Ok, logs.join("\n"))));
+                Ok(Response::with((status::Ok, logs.join("\n"))))
             } else {
                 schedule_github_update(&user, &repo, &sha);
-                return Ok(Response::with((status::Created,
-                               "Build scheduled. Please refresh to see logs.")));
+                Ok(Response::with((status::Created,
+                                   "Build scheduled. Please refresh to see logs.")))
             }
         }
         "status" => {
@@ -163,9 +160,7 @@ pub fn github_handler(req: &mut Request) -> IronResult<Response> {
                 }
             }
         }
-        _ => {
-            return Ok(Response::with((status::BadRequest,
-                               format!("Not Yet Implemented: {}", method))));
-        }
+        _ => Ok(Response::with((status::BadRequest,
+                                format!("Not Yet Implemented: {}", method))))
     }
 }
