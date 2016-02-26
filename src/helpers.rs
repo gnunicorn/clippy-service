@@ -56,7 +56,7 @@ pub fn download_and_unzip(source_url: &str, tmp_dir: &TempDir) -> Result<Vec<Str
                                 let full_path = extracted_path.as_path();
 
                                 if zip_file.size() == 0 {
-                                    fs::create_dir_all(full_path);
+                                    fs::create_dir_all(full_path).unwrap();
                                 } else {
                                     let mut writer = File::create(full_path).unwrap();
                                     let mut buffer: Vec<u8> = vec![];

@@ -1,0 +1,76 @@
+/// Run as an application, this is the starting point for our app
+
+extern crate rustc_serialize;
+
+use rustc_serialize::json::Json;
+use std::slice::SliceConcatExt;
+
+use std::process::Command;
+use std::path::Path;
+use std::vec::Vec;
+
+
+pub enum ClippyState {
+    EndedFine,
+    EndedWithWarnings,
+    EndedWithErrors
+}
+
+pub struct ClippyResult {
+    pub state: ClippyState,
+    pub warnings: u8,
+    pub errors: u8,
+}
+
+pub fn run<F>(path: &Path, logger: F) -> Result<ClippyResult, String>
+    where F : Fn(&str) {
+    match Command::new("cargo")
+                .args(&["rustc", "--", "-Zunstable-options",
+                        "-Zextra-plugins=clippy", "-Zno-trans",
+                        "-lclippy", "--error-format=json"])
+                  .current_dir(path)
+                  .output() {
+        Ok(output) => {
+            let mut warnings = 0;
+            let mut errors = 0;
+            let messages: Vec<String> = String::from_utf8(output.stderr)
+                                  .unwrap_or(String::from(""))
+                                  .split("\n")
+                                  .filter_map(|line| Json::from_str(&line).ok())
+                                  .filter_map(|json| {
+                                      let obj = json.as_object().unwrap();
+                                      match obj.get("level") {
+                                          Some(&Json::String(ref level)) => {
+                                              if level == "warning" {
+                                                 warnings += 1;
+                                              } else if level == "error" {
+                                                  errors += 1;
+                                              }
+                                              Some(format!("{level}: {msg}", level=level, msg=obj.get("message").unwrap()))
+                                          },
+                                          _ => None
+                                      }
+                                  })
+                                  .collect();
+
+            logger(&format!("Messages:\n {}", messages.join("\n")));
+
+            if output.status.success() {
+                match (errors, warnings) {
+                    (0, 0) => Ok(ClippyResult{state: ClippyState::EndedFine,
+                                        warnings: 0,
+                                        errors: 0}),
+                    (0, x) => Ok(ClippyResult{state: ClippyState::EndedWithWarnings,
+                                        warnings: x,
+                                        errors: 0}),
+                    _ => Ok(ClippyResult{state: ClippyState::EndedWithErrors,
+                                        warnings: warnings,
+                                        errors: errors})
+                }
+            } else {
+                Err(format!("Clippy failed with Error code: {}", output.status.code().unwrap_or(-999)))
+            }
+        },
+        Err(error) => Err(format!("Running Clippy failed: {}", error))
+    }
+}

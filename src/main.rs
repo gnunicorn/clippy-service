@@ -28,6 +28,8 @@ use staticfile::Static;
 
 mod handlers;
 mod helpers;
+mod github;
+mod clippy;
 
 fn main() {
     // setup logger
