@@ -4,10 +4,10 @@
 
 ## Documentation
 
-Clippy has inline source code annotations and uses "doccu" to render those into webpages. To update the rendered HTML to the latest version please run doccu  from the `app/` as follows:
+Clippy has inline source code annotations and uses "docco" to render those into webpages. To update the rendered HTML to the latest version please run docco  from the repos root as follows:
 
 ```
-doccu -o static/docs app/main.rs
+docco --languages docco-langs.json -o static/docs src/*.rs
 ```
 
 Clippy automatically picks it up and hosts the latest version found in static/docs.
