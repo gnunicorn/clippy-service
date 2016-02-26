@@ -1,6 +1,6 @@
 # Clippy
 
-[![](https://img.shields.io/badge/Code%20Style-rustfmt-brightgreen.svg?style=flat-square)](https://github.com/rust-lang-nursery/rustfmt#configuring-rustfmt)
+[![](https://img.shields.io/badge/Code%20Style-rustfmt-brightgreen.svg?style=flat-square)](https://github.com/rust-lang-nursery/rustfmt#configuring-rustfmt) ![](http://clippy.bashy.io/github/ligthyear/clippy-service/master/badge.svg)]
 
 ## Documentation
 
