@@ -63,8 +63,8 @@ pub enum ClippyState {
 
 struct ClippyResult {
     state: ClippyState,
-    warnings: i32,
-    errors: i32,
+    warnings: u8,
+    errors: u8,
 }
 
 static LINTING_BADGE_URL: &'static str = "https://img.shields.io/badge/clippy-linting-blue";
@@ -114,7 +114,9 @@ fn download_and_unzip(source_url: &str, tmp_dir: &TempDir) -> Result<Vec<String>
     }
 }
 
-fn run_clippy(path: &Path) -> Result<ClippyResult, String> {
+
+fn run_clippy<F>(path: &Path, logger: F) -> Result<ClippyResult, String>
+    where F : Fn(&str) {
     match Command::new("cargo")
                 .args(&["rustc", "--", "-Zunstable-options",
                         "-Zextra-plugins=clippy", "-Zno-trans",
@@ -122,8 +124,43 @@ fn run_clippy(path: &Path) -> Result<ClippyResult, String> {
                   .current_dir(path)
                   .output() {
         Ok(output) => {
+            // let stdout = String::from_utf8(output.stdout).unwrap_or(String::from(""));
+            let mut warnings = 0;
+            let mut errors = 0;
+            let messages: Vec<String> = String::from_utf8(output.stderr)
+                                  .unwrap_or(String::from(""))
+                                  .split("\n")
+                                  .filter_map(|line| Json::from_str(&line).ok())
+                                  .filter_map(|json| {
+                                      let obj = json.as_object().unwrap();
+                                      match obj.get("level") {
+                                          Some(&Json::String(ref level)) => {
+                                              if level == "warning" {
+                                                 warnings += 1;
+                                              } else if level == "error" {
+                                                  errors += 1;
+                                              }
+                                              Some(format!("{level}: {msg}", level=level, msg=obj.get("message").unwrap()))
+                                          },
+                                          _ => None
+                                      }
+                                  })
+                                  .collect();
+            // logger(&format!("stdout:\n {}", stdout));
+            logger(&format!("Messages:\n {}", messages.join("\n")));
+
             if output.status.success() {
-                Ok(ClippyResult{state: ClippyState::EndedFine, warnings: 0, errors: 0})
+                match (errors, warnings) {
+                    (0, 0) => Ok(ClippyResult{state: ClippyState::EndedFine,
+                                        warnings: 0,
+                                        errors: 0}),
+                    (0, x) => Ok(ClippyResult{state: ClippyState::EndedWithWarnings,
+                                        warnings: x,
+                                        errors: 0}),
+                    _ => Ok(ClippyResult{state: ClippyState::EndedWithWarnings,
+                                        warnings: warnings,
+                                        errors: errors})
+                }
             } else {
                 Err(format!("Clippy failed with Error code: {}", output.status.code().unwrap_or(-999)))
             }
@@ -156,16 +193,16 @@ fn update_for_github<F>(user: &str, repo: &str, sha: &str, logger: F) -> Result<
                         let path = Path::new(file);
                         let parent_directory = path.parent().unwrap();
                         logger(&format!("Cargo file found in {}", parent_directory .to_string_lossy().into_owned()));
-                        logger("Running Clippy there\n--------------------------------");
-                        run_clippy(parent_directory)
+                        logger("-------------------------------- Running Clippy");
+                        run_clippy(parent_directory, logger)
                     }
-                    _ => Err(String::from("No Cargo.toml file found in Archive."))
+                    _ => Err(String::from("No `Cargo.toml` file found in archive."))
                 }
             },
             Err(err) => Err(err)
         }
     } else {
-        Err(String::from("Creating Temp Directory failed"))
+        Err(String::from("Creating temp directory failed"))
     }
 }
 
@@ -240,10 +277,12 @@ fn trigger_update(user: &str, repo: &str, sha: &str){
                 }
             },
             Err(error) => {
-                log_redis(&redis, &log_key, &error);
+                log_redis(&redis, &log_key, &format!("Failed: {}", error));
                 (String::from("failed"), "red")
             }
         };
+
+        log_redis(&redis, &log_key, &format!("------------------------------------------\n Clippy's final verdict: {}", text));
         redis::pipe()
             .cmd("SET")
                 .arg(result_key)
