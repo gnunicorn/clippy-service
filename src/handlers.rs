@@ -130,21 +130,27 @@ pub fn github_handler(req: &mut Request) -> IronResult<Response> {
                 }
             }
         },
-        "log" => {
-            if let Ok(Some(Value::Bulk(logs))) = redis.lrange(redis_key.to_owned(), 0, -1) {
-                let logs: Vec<String> = logs.iter().map(|ref v| {
-                    match **v {
-                        Value::Data(ref val) => String::from_utf8(val.to_owned()).unwrap().to_owned(),
-                        _ => "".to_owned()
-                    }
-                }).collect();
-                Ok(Response::with((status::Ok, logs.join("\n"))))
-            } else {
+        "log" => match redis.lrange(redis_key.to_owned(), 0, -1) {
+            Ok(Some(Value::Bulk(logs))) => match logs.len() {
+                0 => {
+                    schedule_github_update(&user, &repo, &sha);
+                    Ok(Response::with((status::Ok, "Started. Please refresh")))
+                }
+                _ => {
+                    let logs: Vec<String> = logs.iter().map(|ref v| {
+                        match **v {
+                            Value::Data(ref val) => String::from_utf8(val.to_owned()).unwrap().to_owned(),
+                            _ => "".to_owned()
+                        }
+                    }).collect();
+                    Ok(Response::with((status::Ok, logs.join("\n"))))
+                }
+            },
+            _ => {
                 schedule_github_update(&user, &repo, &sha);
-                Ok(Response::with((status::Created,
-                                   "Build scheduled. Please refresh to see logs.")))
+                Ok(Response::with((status::Ok, "Started. Please refresh")))
             }
-        }
+        },
         "status" => {
             let redis_key = format!("result/github/{0}/{1}:{2}",
                                     user,
@@ -156,11 +162,11 @@ pub fn github_handler(req: &mut Request) -> IronResult<Response> {
                                                                     String::from_utf8(status).unwrap().to_owned()))),
                 _ => {
                     schedule_github_update(&user, &repo, &sha);
-                    Ok(Response::with((status::Created,"running")))
+                    Ok(Response::with((status::Ok, "linting")))
                 }
             }
         }
         _ => Ok(Response::with((status::BadRequest,
-                                format!("Not Yet Implemented: {}", method))))
+                                format!("{} Not Implemented.", method))))
     }
 }

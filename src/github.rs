@@ -140,5 +140,4 @@ pub fn schedule_update(user: &str, repo: &str, sha: &str){
                 .ignore()
             .execute(&redis);
     });
-
 }
