@@ -24,7 +24,7 @@ use router::Router;
 use std::slice::SliceConcatExt;
 use redis::{Commands, Value};
 
-use helpers::{setup_redis, fetch, redir, set_redis_cache};
+use helpers::{setup_redis, fetch, redir, local_redir, set_redis_cache};
 use github::{schedule_update as schedule_github_update};
 
 static LINTING_BADGE_URL: &'static str = "https://img.shields.io/badge/clippy-linting-blue";
@@ -43,17 +43,11 @@ pub fn github_finder(req: &mut Request) -> IronResult<Response> {
     let method = router.find("method").unwrap_or("badge.svg");
 
     let redis_key = format!("cached-sha/github/{0}/{1}:{2}", user, repo, branch);
-    let mut target_url = req.url.clone().into_generic_url().to_owned();
 
     match redis.get(redis_key.to_owned()){
         // we have a cached value, redirect directly
         Ok(Value::Data(sha)) =>{
-            {
-                let mut path = target_url.path_mut().unwrap();
-                path.clear();
-                path.extend_from_slice(&["github".to_owned(), "sha".to_owned(), user.to_owned(), repo.to_owned(), String::from_utf8(sha).unwrap().to_owned(), method.to_owned()]);
-            }
-            redir(&target_url, &req.url)
+            local_redir(&format!("/github/sha/{0}/{1}/{2}/{3}", user, repo, String::from_utf8(sha).unwrap(), method), &req.url)
         },
         _ => {
             let github_url = format!("https://api.github.com/repos/{0}/{1}/git/refs/heads/{2}",
@@ -63,13 +57,8 @@ pub fn github_finder(req: &mut Request) -> IronResult<Response> {
             if let Some(body) = fetch(&hyper_client, &github_url) {
                 if let Ok(json) = Json::from_str(&body) {
                     if let Some(&Json::String(ref sha)) = json.find_path(&["object", "sha"]) {
-                        {
-                            let mut path = target_url.path_mut().unwrap();
-                            path.clear();
-                            path.extend_from_slice(&["github".to_owned(), "sha".to_owned(), user.to_owned(), repo.to_owned(), sha.clone().to_owned(), method.to_owned()]);
-                        }
-                        set_redis_cache(&redis, &redis_key, &target_url.serialize());
-                        redir(&target_url, &req.url)
+                        set_redis_cache(&redis, &redis_key, &sha);
+                        local_redir(&format!("/github/sha/{0}/{1}/{2}/{3}", user, repo, sha, method), &req.url)
                     } else {
                         warn!("{}: SHA not found in JSON: {}", &github_url, &json);
                         Ok(Response::with((status::NotFound,

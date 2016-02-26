@@ -23,6 +23,7 @@ use std::slice::SliceConcatExt;
 use redis::{Commands, PipelineCommands};
 
 use iron::modifiers::Redirect;
+use iron::headers::Location;
 use iron::prelude::*;
 use iron::status;
 use iron::Url as iUrl;
@@ -95,6 +96,15 @@ pub fn set_redis_cache(redis: &redis::Connection, key: &str, value: &str) {
         .cmd("SET").arg(key.clone()).arg(value).ignore()
         .cmd("EXPIRE").arg(key.clone()).arg(5 * 60).ignore() // we expire in 5min
         .execute(redis);
+}
+
+pub fn local_redir(url: &str, source_url: &iUrl) -> IronResult<Response> {
+    let mut resp = Response::with(status::TemporaryRedirect);
+    match source_url.query {
+        Some(ref query) => resp.headers.set(Location(format!("{}?{}", &url, query))),
+        _ => resp.headers.set(Location(url.to_owned()))
+    }
+    Ok(resp)
 }
 
 pub fn redir(url: &Url, source_url: &iUrl) -> IronResult<Response> {
