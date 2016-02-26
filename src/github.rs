@@ -107,9 +107,9 @@ pub fn schedule_update(user: &str, repo: &str, sha: &str){
 
         let (text, color) : (String, &str) = match update_for_github(&user, &repo, &sha, logger) {
             Ok(result) => {
-                match result.state {
-                    ClippyState::EndedFine => (String::from("success"), "brightgreen"),
-                    ClippyState::EndedWithWarnings => (
+                match result.ended {
+                    ClippyState::Success => (String::from("success"), "brightgreen"),
+                    ClippyState::WithWarnings => (
                             format!("{0} warnings", result.warnings),
                             match result.warnings {
                                 1...5 => "yellowgreen",
@@ -117,7 +117,7 @@ pub fn schedule_update(user: &str, repo: &str, sha: &str){
                                 10...50 => "orange",
                                 _ => "red"
                             }),
-                    ClippyState::EndedWithErrors => (
+                    ClippyState::WithErrors => (
                             format!("{0} errors", result.errors),
                             "red")
                 }

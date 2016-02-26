@@ -11,13 +11,13 @@ use std::vec::Vec;
 
 
 pub enum ClippyState {
-    EndedFine,
-    EndedWithWarnings,
-    EndedWithErrors
+    Success,
+    WithWarnings,
+    WithErrors
 }
 
 pub struct ClippyResult {
-    pub state: ClippyState,
+    pub ended: ClippyState,
     pub warnings: u8,
     pub errors: u8,
 }
@@ -57,13 +57,13 @@ pub fn run<F>(path: &Path, logger: F) -> Result<ClippyResult, String>
 
             if output.status.success() {
                 match (errors, warnings) {
-                    (0, 0) => Ok(ClippyResult{state: ClippyState::EndedFine,
+                    (0, 0) => Ok(ClippyResult{ended: ClippyState::Success,
                                         warnings: 0,
                                         errors: 0}),
-                    (0, x) => Ok(ClippyResult{state: ClippyState::EndedWithWarnings,
+                    (0, x) => Ok(ClippyResult{ended: ClippyState::WithWarnings,
                                         warnings: x,
                                         errors: 0}),
-                    _ => Ok(ClippyResult{state: ClippyState::EndedWithErrors,
+                    _ => Ok(ClippyResult{ended: ClippyState::WithErrors,
                                         warnings: warnings,
                                         errors: errors})
                 }
