@@ -1,3 +1,4 @@
+/// Run as an application, this is the starting point for our app
  #![feature(slice_concat_ext)]
 
 extern crate iron;
@@ -124,7 +125,6 @@ fn run_clippy<F>(path: &Path, logger: F) -> Result<ClippyResult, String>
                   .current_dir(path)
                   .output() {
         Ok(output) => {
-            // let stdout = String::from_utf8(output.stdout).unwrap_or(String::from(""));
             let mut warnings = 0;
             let mut errors = 0;
             let messages: Vec<String> = String::from_utf8(output.stderr)
@@ -146,7 +146,7 @@ fn run_clippy<F>(path: &Path, logger: F) -> Result<ClippyResult, String>
                                       }
                                   })
                                   .collect();
-            // logger(&format!("stdout:\n {}", stdout));
+
             logger(&format!("Messages:\n {}", messages.join("\n")));
 
             if output.status.success() {
@@ -417,7 +417,6 @@ fn main() {
             },
             "log" => {
                 if let Ok(Some(Value::Bulk(logs))) = redis.lrange(redis_key.to_owned(), 0, -1) {
-                    // let logs: Vec<Value::Data> = logs;
                     let logs: Vec<String> = logs.iter().map(|ref v| {
                         match *v {
                             &Value::Data(ref val) => String::from_utf8(val.to_owned()).unwrap().to_owned(),
