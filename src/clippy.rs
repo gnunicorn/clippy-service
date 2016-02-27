@@ -33,6 +33,7 @@ pub fn run<F>(path: &Path, logger: F) -> Result<ClippyResult, String>
 
     match Command::new("firejail")
               .args(&["--profile=/etc/firejail/cargo.profile",
+                      "--force",
                       format!("--whitelist={}",
                       &path.to_string_lossy().into_owned()).as_str(),
                       "cargo",
