@@ -8,7 +8,7 @@ use std::slice::SliceConcatExt;
 use std::process::Command;
 use std::path::Path;
 use std::vec::Vec;
-
+use std::{env, fs};
 
 pub enum ClippyState {
     Success,
@@ -25,9 +25,18 @@ pub struct ClippyResult {
 pub fn run<F>(path: &Path, logger: F) -> Result<ClippyResult, String>
     where F: Fn(&str)
 {
+
+    let libs_path = env::current_exe().unwrap();
+    let libs_path = fs::canonicalize(libs_path).unwrap();
+    let libs_path = libs_path.parent().unwrap();
+    let libs_path = libs_path.join("deps");
+
+
     match Command::new("cargo")
               .args(&["rustc",
                       "--",
+                      "-L",
+                      &libs_path.to_string_lossy().into_owned(),
                       "-Zunstable-options",
                       "-Zextra-plugins=clippy",
                       "-Zno-trans",
