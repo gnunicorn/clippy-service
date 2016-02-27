@@ -25,7 +25,7 @@ use std::slice::SliceConcatExt;
 use redis::{Commands, Value};
 
 use helpers::{setup_redis, fetch, redir, local_redir, set_redis_cache};
-use github::{schedule_update as schedule_github_update};
+use github::schedule_update as schedule_github_update;
 
 static LINTING_BADGE_URL: &'static str = "https://img.shields.io/badge/clippy-linting-blue";
 
@@ -44,11 +44,16 @@ pub fn github_finder(req: &mut Request) -> IronResult<Response> {
 
     let redis_key = format!("cached-sha/github/{0}/{1}:{2}", user, repo, branch);
 
-    match redis.get(redis_key.to_owned()){
+    match redis.get(redis_key.to_owned()) {
         // we have a cached value, redirect directly
-        Ok(Value::Data(sha)) =>{
-            local_redir(&format!("/github/sha/{0}/{1}/{2}/{3}", user, repo, String::from_utf8(sha).unwrap(), method), &req.url)
-        },
+        Ok(Value::Data(sha)) => {
+            local_redir(&format!("/github/sha/{0}/{1}/{2}/{3}",
+                                 user,
+                                 repo,
+                                 String::from_utf8(sha).unwrap(),
+                                 method),
+                        &req.url)
+        }
         _ => {
             let github_url = format!("https://api.github.com/repos/{0}/{1}/git/refs/heads/{2}",
                                      user,
@@ -58,22 +63,27 @@ pub fn github_finder(req: &mut Request) -> IronResult<Response> {
                 if let Ok(json) = Json::from_str(&body) {
                     if let Some(&Json::String(ref sha)) = json.find_path(&["object", "sha"]) {
                         set_redis_cache(&redis, &redis_key, &sha);
-                        local_redir(&format!("/github/sha/{0}/{1}/{2}/{3}", user, repo, sha, method), &req.url)
+                        local_redir(&format!("/github/sha/{0}/{1}/{2}/{3}",
+                                             user,
+                                             repo,
+                                             sha,
+                                             method),
+                                    &req.url)
                     } else {
                         warn!("{}: SHA not found in JSON: {}", &github_url, &json);
                         Ok(Response::with((status::NotFound,
-                                                  format!("Couldn't find on Github {}", &github_url))))
+                                           format!("Couldn't find on Github {}", &github_url))))
                     }
                 } else {
                     warn!("{}: Couldn't parse Githubs JSON response: {}",
                           &github_url,
                           &body);
                     Ok(Response::with((status::InternalServerError,
-                                              "Couldn't parse Githubs JSON response")))
+                                       "Couldn't parse Githubs JSON response")))
                 }
             } else {
                 Ok(Response::with((status::NotFound,
-                                          format!("Couldn't find on Github {}", &github_url))))
+                                   format!("Couldn't find on Github {}", &github_url))))
             }
         }
     }
@@ -94,7 +104,7 @@ pub fn github_handler(req: &mut Request) -> IronResult<Response> {
                                     .collect();
     let (method, ext) = match filename.len() {
         2 => (filename[1], filename[0]),
-        _ => (filename[0], "")
+        _ => (filename[0], ""),
     };
 
     let redis_key = format!("{0}/github/{1}/{2}:{3}", method, user, repo, sha);
@@ -102,60 +112,67 @@ pub fn github_handler(req: &mut Request) -> IronResult<Response> {
     match method {
         "badge" => {
             // if this is a badge, then we might have a cached version
-            match redis.get(redis_key.to_owned()){
+            match redis.get(redis_key.to_owned()) {
                 Ok(Some(Value::Data(base_url))) => {
                     let base_url = String::from_utf8(base_url).unwrap().to_owned();
                     let target_badge = match req.url.clone().query {
                         Some(query) => format!("{}.{}?{}", base_url, ext, query),
-                        _ => format!("{}.{}", base_url, ext)
+                        _ => format!("{}.{}", base_url, ext),
                     };
                     Ok(Response::with((status::TemporaryRedirect,
                                        Redirect(iUrl::parse(&target_badge).unwrap()))))
-                },
+                }
                 _ => {
                     schedule_github_update(&user, &repo, &sha);
                     let target_badge = format!("{}.{}", LINTING_BADGE_URL, ext);
                     redir(&Url::parse(&target_badge).unwrap(), &req.url)
                 }
             }
-        },
-        "log" => match redis.lrange(redis_key.to_owned(), 0, -1) {
-            Ok(Some(Value::Bulk(logs))) => match logs.len() {
-                0 => {
+        }
+        "log" => {
+            match redis.lrange(redis_key.to_owned(), 0, -1) {
+                Ok(Some(Value::Bulk(logs))) => {
+                    match logs.len() {
+                        0 => {
+                            schedule_github_update(&user, &repo, &sha);
+                            Ok(Response::with((status::Ok, "Started. Please refresh")))
+                        }
+                        _ => {
+                            let logs: Vec<String> = logs.iter()
+                                                        .map(|ref v| {
+                                                            match **v {
+                                                                Value::Data(ref val) => {
+                                                String::from_utf8(val.to_owned())
+                                                    .unwrap()
+                                                    .to_owned()
+                                            }
+                                                                _ => "".to_owned(),
+                                                            }
+                                                        })
+                                                        .collect();
+                            Ok(Response::with((status::Ok, logs.join("\n"))))
+                        }
+                    }
+                }
+                _ => {
                     schedule_github_update(&user, &repo, &sha);
                     Ok(Response::with((status::Ok, "Started. Please refresh")))
                 }
-                _ => {
-                    let logs: Vec<String> = logs.iter().map(|ref v| {
-                        match **v {
-                            Value::Data(ref val) => String::from_utf8(val.to_owned()).unwrap().to_owned(),
-                            _ => "".to_owned()
-                        }
-                    }).collect();
-                    Ok(Response::with((status::Ok, logs.join("\n"))))
-                }
-            },
-            _ => {
-                schedule_github_update(&user, &repo, &sha);
-                Ok(Response::with((status::Ok, "Started. Please refresh")))
             }
-        },
+        }
         "status" => {
-            let redis_key = format!("result/github/{0}/{1}:{2}",
-                                    user,
-                                    repo,
-                                    sha).to_owned();
+            let redis_key = format!("result/github/{0}/{1}:{2}", user, repo, sha).to_owned();
 
             match redis.get(redis_key.to_owned()) {
-                Ok(Some(Value::Data(status))) => Ok(Response::with((status::Ok,
-                                                                    String::from_utf8(status).unwrap().to_owned()))),
+                Ok(Some(Value::Data(status))) => {
+                    Ok(Response::with((status::Ok, String::from_utf8(status).unwrap().to_owned())))
+                }
                 _ => {
                     schedule_github_update(&user, &repo, &sha);
                     Ok(Response::with((status::Ok, "linting")))
                 }
             }
         }
-        _ => Ok(Response::with((status::BadRequest,
-                                format!("{} Not Implemented.", method))))
+        _ => Ok(Response::with((status::BadRequest, format!("{} Not Implemented.", method)))),
     }
 }
