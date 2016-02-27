@@ -32,7 +32,8 @@ pub fn run<F>(path: &Path, logger: F) -> Result<ClippyResult, String>
     let libs_path = libs_path.join("deps");
 
     match Command::new("firejail")
-              .args(&[format!("--whitelist={}",
+              .args(&["--profile=/etc/firejail/cargo.profile",
+                      format!("--whitelist={}",
                       &path.to_string_lossy().into_owned()).as_str(),
                       "cargo",
                       "rustc",
