@@ -39,7 +39,7 @@ pub fn download_and_unzip(source_url: &str, tmp_dir: &TempDir) -> Result<Vec<Str
 
     let client = Client::new();
     let res = client.get(&source_url.to_owned())
-                    .header(header::UserAgent("Clippy/0.1".to_owned()))
+                    .header(header::UserAgent("Clippy/0.9.0".to_owned()))
                     .header(header::Accept(vec![qitem(mime!(_/_))]))
                     .header(header::Connection::close());
 
@@ -125,7 +125,7 @@ pub fn redir(url: &Url, source_url: &iUrl) -> IronResult<Response> {
 
 pub fn fetch(client: &Client, url: &str) -> Option<String> {
     let res = client.get(url)
-                    .header(header::UserAgent("Clippy/0.1".to_owned()))
+                    .header(header::UserAgent("Clippy/0.9.0".to_owned()))
                     .header(header::Accept(vec![qitem(mime!(_/_))]))
                     .header(header::Connection::close());
     if let Ok(mut res) = res.send() {
