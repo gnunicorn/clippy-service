@@ -48,11 +48,13 @@ pub fn run<F>(path: &Path, logger: F) -> Result<ClippyResult, String>
               .current_dir(path)
               .output() {
         Ok(output) => {
+            let stdout = String::from_utf8(output.stdout).unwrap();
+            let stderr = String::from_utf8(output.stderr).unwrap();
+            logger(&format!("----- stdout:\n{}", &stdout));
+            logger(&format!("----- stderr:\n{}", &stderr));
             let mut warnings = 0;
             let mut errors = 0;
-            let messages: Vec<String> = String::from_utf8(output.stderr)
-                                            .unwrap()
-                                            .split('\n')
+            let messages: Vec<String> = stderr.split('\n')
                                             .filter_map(|line| Json::from_str(&line).ok())
                                             .filter_map(|json| {
                                                 let obj = json.as_object().unwrap();
@@ -73,7 +75,7 @@ pub fn run<F>(path: &Path, logger: F) -> Result<ClippyResult, String>
                                             })
                                             .collect();
 
-            logger(&format!("Messages:\n {}", messages.join("\n")));
+            logger(&format!("-----\nMessages identified:\n {}", messages.join("\n")));
 
             if output.status.success() {
                 match (errors, warnings) {
