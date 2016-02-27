@@ -9,7 +9,6 @@ include /etc/firejail/disable-common.inc
 read-only ${HOME}/app
 read-only /vagrant/
 private-dev
-private-etc
 caps.drop all
 seccomp
 noroot
