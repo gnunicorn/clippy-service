@@ -31,9 +31,11 @@ pub fn run<F>(path: &Path, logger: F) -> Result<ClippyResult, String>
     let libs_path = libs_path.parent().unwrap();
     let libs_path = libs_path.join("deps");
 
-
-    match Command::new("cargo")
-              .args(&["rustc",
+    match Command::new("firejail")
+              .args(&[format!("--whitelist={}",
+                      &path.to_string_lossy().into_owned()).as_str(),
+                      "cargo",
+                      "rustc",
                       "--",
                       "-L",
                       &libs_path.to_string_lossy().into_owned(),

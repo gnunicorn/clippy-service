@@ -12,6 +12,11 @@ ENV LD_LIBRARY_PATH $LD_LIBRARY_PATH:/usr/local/lib
 COPY . ~/app
 
 WORKDIR ~/app
+
+# install firejail
+RUN etc/install_firejail.sh
+
+# build service
 RUN cargo build
 
 EXPOSE 8080
