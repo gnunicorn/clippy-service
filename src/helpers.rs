@@ -138,7 +138,7 @@ pub fn fetch(client: &Client, url: &str) -> Option<String> {
 }
 
 pub fn setup_redis() -> redis::Connection {
-    let url = redis::parse_redis_url(&env::var("REDIS_URL").unwrap_or("redis://redis/".to_owned()))
+    let url = redis::parse_redis_url(&env::var("REDIS_URL").unwrap_or("redis://localhost/".to_owned()))
                   .unwrap();
     redis::Client::open(url)
         .unwrap()
