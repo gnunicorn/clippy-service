@@ -11,24 +11,37 @@
 #
 ###################################################################
 
+# disallow all
+-P INPUT   DROP
+-P FORWARD DROP
+-P OUTPUT DROP
 
--A INPUT -i lo -j ACCEPT
--A INPUT -m state --state RELATED,ESTABLISHED -j ACCEPT
--A INPUT -p icmp --icmp-type destination-unreachable -j ACCEPT
--A INPUT -p icmp --icmp-type time-exceeded -j ACCEPT
--A INPUT -p icmp --icmp-type echo-request -j ACCEPT
+# accept ICMP, ping and stuff
+-A OUTPUT -p icmp -m state --state NEW,ESTABLISHED,RELATED -j ACCEPT
+-A INPUT  -p icmp -m state --state ESTABLISHED,RELATED     -j ACCEPT
 
--A OUTPUT -p udp --dport 53 -j ACCEPT
--A OUTPUT -d 192.168.0.0/16 -j DROP
--A OUTPUT -d 10.0.0.0/8 -j DROP
--A OUTPUT -d 172.16.0.0/12 -j DROP
+
+
+# Allow DNS lookups via our configured Google DNS servers
+-A OUTPUT -p udp -d 8.8.4.4 --dport 53 -m state --state NEW,ESTABLISHED -j ACCEPT
+-A INPUT  -p udp -s 8.8.4.4 --sport 53 -m state --state ESTABLISHED     -j ACCEPT
+-A OUTPUT -p tcp -d 8.8.4.4 --dport 53 -m state --state NEW,ESTABLISHED -j ACCEPT
+-A INPUT -p tcp -s 8.8.4.4 --sport 53 -m state --state ESTABLISHED -j ACCEPT
+
+-A OUTPUT -p udp -d 8.8.8.8 --dport 53 -m state --state NEW,ESTABLISHED -j ACCEPT
+-A INPUT  -p udp -s 8.8.8.8 --sport 53 -m state --state ESTABLISHED     -j ACCEPT
+-A OUTPUT -p tcp -d 8.8.8.8 --dport 53 -m state --state NEW,ESTABLISHED -j ACCEPT
+-A INPUT -p tcp -s 8.8.8.8 --sport 53 -m state --state ESTABLISHED -j ACCEPT
+
+
 
 # we do accept github.com
--A INPUT -s 192.30.252.0/22 --dport 22 -j ACCEPT
--A INPUT -s 192.30.252.0/22 --dport 80 -j ACCEPT
--A INPUT -s 192.30.252.0/22 --dport 443 -j ACCEPT
--A OUTPUT -d 192.30.252.0/22 --dport 22 -j ACCEPT
--A OUTPUT -d 192.30.252.0/22 --dport 80 -j ACCEPT
--A OUTPUT -d 192.30.252.0/22 --dport 443 -j ACCEPT
+# ssh
+-A OUTPUT -p tcp -d 192.30.252.0/22 --dport 22 -m state --state NEW,ESTABLISHED -j ACCEPT
+-A INPUT -p tcp -s 192.30.252.0/22 --sport 22 -m state --state NEW,ESTABLISHED -j ACCEPT
+
+# and HTTPS
+-A OUTPUT -p tcp -d 192.30.252.0/22 --dport 443 -m state --state NEW,ESTABLISHED -j ACCEPT
+-A INPUT -p tcp -s 192.30.252.0/22 --sport 443 -m state --state NEW,ESTABLISHED -j ACCEPT
 
 COMMIT

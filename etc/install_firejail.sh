@@ -2,7 +2,8 @@
 set -e
 
 # download firejail
-wget https://sourceforge.net/projects/firejail/files/firejail/firejail_0.9.38_1_amd64.deb https://sourceforge.net/projects/firejail/files/firejail/firejail-0.9.38.asc
+curl -sLO https://sourceforge.net/projects/firejail/files/firejail/firejail_0.9.38_1_amd64.deb
+curl -sLO https://sourceforge.net/projects/firejail/files/firejail/firejail-0.9.38.asc
 
 # check the gpg signature
 gpg --import etc/firejail-developers.asc
