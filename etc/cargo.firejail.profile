@@ -11,7 +11,6 @@ read-only /vagrant/
 private-dev
 caps.drop all
 seccomp
-noroot
 
 # limit the process resources
 rlimit-nproc 100
