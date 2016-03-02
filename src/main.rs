@@ -10,6 +10,7 @@ extern crate url;
 extern crate time;
 extern crate tempdir;
 extern crate zip;
+extern crate mount;
 
 #[macro_use]
 extern crate router;
@@ -25,6 +26,7 @@ extern crate env_logger;
 use std::path::Path;
 use iron::prelude::*;
 use staticfile::Static;
+use mount::Mount;
 
 mod handlers;
 mod helpers;
@@ -35,13 +37,15 @@ fn main() {
     // setup logger
     env_logger::init().unwrap();
 
-    let router = router!(
-        get "/github/sha/:user/:repo/:sha/:method" => handlers::github_handler,
-        get "/github/:user/:repo/:branch/:method" => handlers::github_finder,
-        get "/github/:user/:repo/:method" => handlers::github_finder,
-        get "/" => Static::new(Path::new("static"))
-    );
+    let mut mount = Mount::new();
+    mount.mount("/github/", router!(
+        get "/sha/:user/:repo/:sha/:method" => handlers::github_handler,
+        get "/:user/:repo/:branch/:method" => handlers::github_finder,
+        get "/:user/:repo/:method" => handlers::github_finder
+    ));
+    mount.mount("/docs/", Static::new(Path::new("static/docs/")));
+    mount.mount("/", Static::new(Path::new("static")));
 
     warn!("Server running at 8080");
-    Iron::new(router).http("0.0.0.0:8080").unwrap();
+    Iron::new(mount).http("0.0.0.0:8080").unwrap();
 }
