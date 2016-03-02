@@ -6,5 +6,7 @@ after_success:
   - eval "$(ssh-agent -s)" #start the ssh agent
   - chmod 600 .travis/deploy_key.pem # this key should have push access
   - ssh-add .travis/deploy_key.pem
+  # add our server to known hosts:
+  - echo "37.139.22.109 ecdsa-sha2-nistp256 AAAAE2VjZHNhLXNoYTItbmlzdHAyNTYAAAAIbmlzdHAyNTYAAABBBOZIp/hwrlq3tlBsP/UuA6tXfSU0lN2HTVv8LrJz/YWOF9ZrmouOOnM0vij3RnUKKarKzH6soUytA0MxHjh9oW8=" >> ~/.ssh/known_hosts
   - git remote add deploy dokku@37.139.22.109:clippy
-  - git push deploy
+  - git push -u deploy master
