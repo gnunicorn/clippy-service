@@ -7,7 +7,7 @@
 Clippy has inline source code annotations and uses "docco" to render those into webpages. To update the rendered HTML to the latest version please run docco  from the repos root as follows:
 
 ```
-docco --languages docco-langs.json -o static/docs src/*.rs
+docco --languages etc/docco-langs.json -o static/docs src/*.rs
 ```
 
 Clippy automatically picks it up and hosts the latest version found in static/docs.
