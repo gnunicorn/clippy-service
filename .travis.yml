@@ -1,12 +1,16 @@
 language: rust
 rust:
-  - nightly
+- nightly
+addons:
+  ssh_known_hosts: 37.139.22.109
+
+before_install:
+  - openssl aes-256-cbc -K $encrypted_4ed4cdc9df6d_key -iv $encrypted_4ed4cdc9df6d_iv
+    -in etc/deploy_key.enc -out etc/deploy_key -d
 
 after_success:
-  - eval "$(ssh-agent -s)" #start the ssh agent
-  - chmod 600 .travis/deploy_key.pem # this key should have push access
-  - ssh-add .travis/deploy_key.pem
-  # add our server to known hosts:
-  - echo "37.139.22.109 ecdsa-sha2-nistp256 AAAAE2VjZHNhLXNoYTItbmlzdHAyNTYAAAAIbmlzdHAyNTYAAABBBOZIp/hwrlq3tlBsP/UuA6tXfSU0lN2HTVv8LrJz/YWOF9ZrmouOOnM0vij3RnUKKarKzH6soUytA0MxHjh9oW8=" >> ~/.ssh/known_hosts
-  - git remote add deploy dokku@37.139.22.109:clippy
-  - git push -u deploy master
+- eval "$(ssh-agent -s)"
+- chmod 600 .travis/deploy_key
+- ssh-add .travis/deploy_key
+- git remote add deploy dokku@37.139.22.109:clippy
+- git push -u deploy master
