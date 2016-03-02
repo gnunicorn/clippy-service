@@ -111,18 +111,6 @@ pub fn local_redir(url: &str, source_url: &iUrl) -> IronResult<Response> {
     Ok(resp)
 }
 
-pub fn redir(url: &Url, source_url: &iUrl) -> IronResult<Response> {
-    match iUrl::from_generic_url(url.clone()) {
-        Ok(mut redir_url) => {
-            if let Some(ref query) = source_url.query {
-                redir_url.query = Some(query.clone());
-            }
-            Ok(Response::with((status::TemporaryRedirect, Redirect(redir_url))))
-        }
-        Err(err) => Ok(Response::with((status::InternalServerError, err))),
-    }
-}
-
 pub fn fetch(client: &Client, url: &str) -> Option<String> {
     let res = client.get(url)
                     .header(header::UserAgent("Clippy/0.9.0".to_owned()))

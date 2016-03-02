@@ -15,8 +15,6 @@ use iron::prelude::*;
 use iron::status;
 use iron::Url as iUrl;
 
-use url::Url;
-
 use hyper::client::Client;
 
 use router::Router;
@@ -24,10 +22,10 @@ use router::Router;
 use std::slice::SliceConcatExt;
 use redis::{Commands, Value};
 
-use helpers::{setup_redis, fetch, redir, local_redir, set_redis_cache};
+use helpers::{setup_redis, fetch, local_redir, set_redis_cache};
 use github::schedule_update as schedule_github_update;
 
-static LINTING_BADGE_URL: &'static str = "https://img.shields.io/badge/clippy-linting-blue";
+static BADGE_URL_BASE: &'static str = "https://img.shields.io/badge/";
 
 pub fn github_finder(req: &mut Request) -> IronResult<Response> {
 
@@ -112,23 +110,36 @@ pub fn github_handler(req: &mut Request) -> IronResult<Response> {
     match method {
         "badge" => {
             // if this is a badge, then we might have a cached version
-            match redis.get(redis_key.to_owned()) {
-                Ok(Some(Value::Data(base_url))) => {
-                    let base_url = String::from_utf8(base_url).unwrap().to_owned();
-                    let target_badge = match req.url.clone().query {
-                        Some(query) => format!("{}.{}?{}", base_url, ext, query),
-                        _ => format!("{}.{}", base_url, ext),
-                    };
-                    Ok(Response::with((status::TemporaryRedirect,
-                                       Redirect(iUrl::parse(&target_badge).unwrap()))))
+            let redis_key = format!("result/github/{0}/{1}:{2}", user, repo, sha).to_owned();
+            let url = match redis.get(redis_key.to_owned()) {
+                Ok(Some(Value::Data(status))) => {
+                    let status = String::from_utf8(status).unwrap().to_owned();
+                    format!("{}clippy-{}-{}", BADGE_URL_BASE, status, match status.as_str() {
+                        "success" => "brightgreen",
+                        "failed" => "red",
+                        "linting" => "blue",
+                        _ => {
+                            if status.ends_with("errors") {
+                                "red"
+                            } else { // warnings
+                                "yellow"
+                            }
+                        }
+                    })
                 }
                 _ => {
                     schedule_github_update(&user, &repo, &sha);
-                    let target_badge = format!("{}.{}", LINTING_BADGE_URL, ext);
-                    redir(&Url::parse(&target_badge).unwrap(), &req.url)
+                    format!("{}clippy-linting-blue", BADGE_URL_BASE)
                 }
-            }
-        }
+            };
+
+            let target_badge = match req.url.clone().query {
+                Some(query) => format!("{}.{}?{}", url, ext, query),
+                _ => format!("{}.{}", url, ext),
+            };
+            Ok(Response::with((status::TemporaryRedirect,
+                               Redirect(iUrl::parse(&target_badge).unwrap()))))
+        },
         "log" => {
             match redis.lrange(redis_key.to_owned(), 0, -1) {
                 Ok(Some(Value::Bulk(logs))) => {
