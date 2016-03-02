@@ -10,7 +10,7 @@ before_install:
 
 after_success:
 - eval "$(ssh-agent -s)"
-- chmod 600 .travis/deploy_key
-- ssh-add .travis/deploy_key
+- chmod 600 etc/deploy_key
+- ssh-add etc/deploy_key
 - git remote add deploy dokku@37.139.22.109:clippy
 - git push -u deploy master
