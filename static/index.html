@@ -1,1 +1,135 @@
-Hello there
+<!DOCTYPE html>
+
+<html>
+<head>
+  <title>Clippy Service – Your rust project linter</title>
+  <meta http-equiv="content-type" content="text/html; charset=UTF-8">
+  <meta name="viewport" content="width=device-width, target-densitydpi=160dpi, initial-scale=1.0; maximum-scale=1.0; user-scalable=0;">
+  <link rel="stylesheet" media="all" href="docs/docco.css" />
+</head>
+<style>
+body{
+  text-align: center;
+  max-width: 960px;
+  margin: 0 auto;
+}
+h1 {
+  font-size: 4em;
+  display: inline-block;
+  border: 6px solid #555;
+  padding: 0.5em;
+  background: #4c1;
+  border-radius: 100%;
+}
+.boxed {
+  margin-top: 2em;
+  padding: 2em;
+  border: 1px solid #aaa;
+}
+
+footer {
+  margin-top: 8em;
+  border-top: 2px solid #eee;
+  line-height: 4em;
+  font-size: 0.825em;
+  padding: 2em 0 0 0;
+}
+footer img {
+  display: inline;
+  height: 3em;
+  vertical-align: middle;
+}
+</style>
+<script>
+
+function update_output(username, repo, br, render, style){
+  console.log(this, arguments);
+  var base = document.location.protocol + "//" + document.location.host;
+  var result = document.getElementById("result");
+  var branch = br || "master";
+  if (!username || !repo) {
+    result.innerHTML = "<em>Please provide username and repository</em>"
+    return
+  } else {
+    result.innerHTML = "";
+  }
+
+  var main_url = base + "/github/" + username + "/" + repo + "/" + branch + "/";
+  var badge_url = main_url + "badge.svg" + (style ? "?style=" + style : "");
+  var log_url = main_url + "log";
+
+  switch (render) {
+    case "asciidoc":
+      result.value = 'image:' + badge_url +'[link="' + log_url + '"]';
+      break;
+    case "rst":
+      result.value = '.. image::' + badge_url + ':target:' + log_url;
+      break;
+    case "link":
+      result.value = '<a href="' + log_url +'"><img alt="Clippy Linting Result" src="'+ badge_url +'" /></a>'
+      break;
+    default:
+      // markdown is default
+      result.value = '[![Clippy Linting Result](' + badge_url +')]('+ log_url +')'
+      break;
+  }
+}
+
+</script>
+<body onload="update_output()">
+    <h1>📎</h1>
+    <p>Linting service for your <a href="http://www.rust-lang.org" target="_blank">Rust</a> Project</p>
+
+  <div class="boxed">
+    <form oninput="update_output(username.value, repo.value, branch.value, render.value, style.value);">
+
+      <p>
+        github.com / <input name="username" type="text" placeholder="username" /> / <input name="repo" type="text" placeholder="repo" /> : <input type="text" name="branch" placeholder="master" />
+        <select onChange="update_output(username.value, repo.value, branch.value, render.value, this.value);" name="style">
+          <option value="plastic">plastic style
+          </option><option value="" selected="">flat style
+          </option><option value="flat-square">flat-square style
+        </option>
+      </select>
+      </p>
+
+      <p>
+        <label>
+          <input onChange="update_output(username.value, repo.value, branch.value, render.value, style.value);" type="radio" checked name="render" value="markdown" /> Markdown (.md)
+        </label>
+        <label>
+          <input onChange="update_output(username.value, repo.value, branch.value, render.value, style.value);" type="radio" name="render" value="rst" /> ReST (.rst)
+        </label>
+        <label>
+          <input onChange="update_output(username.value, repo.value, branch.value, render.value, style.value);" type="radio" name="render" value="asciidoc" /> AsciiDoc (.adoc)
+        </label>
+        <label>
+          <input onChange="update_output(username.value, repo.value, branch.value, render.value, style.value);" type="radio" name="render" value="link" /> Link (raw)
+        </label>
+      </p>
+      <hr />
+
+      <output id="result" name="result"></output>
+
+    </div>
+
+    <div class="boxed">
+      <h2>You can build Web Services in Rust!</h2>
+      <p>
+        More than just a small service to lint rust projects, this is also a learning project, show casing that <strong>you can build web services with Rust</strong> (as <a href="http://www.arewewebyet.org/" target="_blank">AreWeWebYet.org</a> promised). For that purpose this project comes with an <strong>extensive Documentation</strong>, explaining every single line of source code and infrastructure setup files (like for <a href="https://github.com/ligthyear/clippy-service/blob/master/Vagrantfile" target="_blank">Vagrant</a>, <a href="https://github.com/ligthyear/clippy-service/blob/master/Dockerfile" target="_blank">Docker</a>, <a href="https://github.com/ligthyear/clippy-service/blob/master/.travis.yml" target="_blank">Travis</a>). So, if you are curious how to build a web service with rust:
+      </p>
+      <p>
+        <strong><a href="docs/">Check out the project documentation.</a></strong>
+      </p>
+    </div>
+
+    <footer>
+      <p>
+        <img title="Bashy Logo" src="http://www.bashy.io/assets/bashy.svg" alt="Bashy Logo Image">
+        © 2016 <a href="http://www.bashy.io/" target="_blank">The Bashy Initiative</a>, Licensed under AGPL 3.0 – <a href="https://github.com/ligthyear/clippy-service/">Github Source here</a>.
+      </p>
+    </footer>
+
+  </form>
+</body>
+</html>
