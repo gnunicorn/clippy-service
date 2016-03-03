@@ -14,8 +14,6 @@ use redis::{Commands, PipelineCommands};
 use helpers::{setup_redis, log_redis, download_and_unzip};
 use clippy::{ClippyState, ClippyResult, run as run_clippy};
 
-static LINTING_BADGE_URL: &'static str = "https://img.shields.io/badge/clippy-linting-blue";
-
 fn update_for_github<F>(user: &str,
                         repo: &str,
                         sha: &str,
@@ -65,7 +63,6 @@ pub fn schedule_update(user: &str, repo: &str, sha: &str) {
 
     let result_key = format!("result/{}", base_key).to_owned();
     let log_key = format!("log/{}", base_key).to_owned();
-    let badge_key = format!("badge/{}", base_key).to_owned();
 
     thread::spawn(move || {
         let redis: redis::Connection = setup_redis();
@@ -74,9 +71,9 @@ pub fn schedule_update(user: &str, repo: &str, sha: &str) {
         // let's make sure we are the first to run here,
         // otherwise, exit the thread preemptively
         if let Ok(existing) = redis::transaction(&redis,
-                                                 &[log_key.clone(), badge_key.clone()],
+                                                 &[log_key.clone(), result_key.clone()],
                                                  |pipe| {
-                                                     match redis.exists(badge_key.clone()) {
+                                                     match redis.exists(result_key.clone()) {
                                                          Ok(Some(false)) => {
                                                              pipe.cmd("RPUSH")
                                                                  .arg(log_key.clone())
@@ -88,14 +85,6 @@ pub fn schedule_update(user: &str, repo: &str, sha: &str) {
                                                                               user,
                                                                               repo,
                                                                               sha))
-                                                                 .ignore()
-                                                                 .cmd("SET")
-                                                                 .arg(badge_key.clone())
-                                                                 .arg(LINTING_BADGE_URL)
-                                                                 .ignore()
-                                                                 .cmd("EXPIRE")
-                                                                 .arg(badge_key.clone())
-                                                                 .arg(300)
                                                                  .ignore()
                                                                  .execute(&redis);
                                                              Ok(Some(false))
@@ -111,25 +100,17 @@ pub fn schedule_update(user: &str, repo: &str, sha: &str) {
         }
 
 
-        let (text, color): (String, &str) = match update_for_github(&user, &repo, &sha, logger) {
+        let text: String = match update_for_github(&user, &repo, &sha, logger) {
             Ok(result) => {
                 match result.ended {
-                    ClippyState::Success => (String::from("success"), "brightgreen"),
-                    ClippyState::WithWarnings => {
-                        (format!("{0} warnings", result.warnings),
-                         match result.warnings {
-                            1...5 => "yellowgreen",
-                            5...10 => "yellow",
-                            10...50 => "orange",
-                            _ => "red",
-                        })
-                    }
-                    ClippyState::WithErrors => (format!("{0} errors", result.errors), "red"),
+                    ClippyState::Success => String::from("success"),
+                    ClippyState::WithWarnings => format!("{0} warnings", result.warnings),
+                    ClippyState::WithErrors => format!("{0} errors", result.errors)
                 }
             }
             Err(error) => {
                 log_redis(&redis, &log_key, &format!("Failed: {}", error));
-                (String::from("failed"), "red")
+                String::from("failed")
             }
         };
 
@@ -142,10 +123,6 @@ pub fn schedule_update(user: &str, repo: &str, sha: &str) {
             .cmd("SET")
             .arg(result_key)
             .arg(text.clone())
-            .ignore()
-            .cmd("SET")
-            .arg(badge_key)
-            .arg(format!("https://img.shields.io/badge/clippy-{}-{}", text, color))
             .ignore()
             .execute(&redis);
     });

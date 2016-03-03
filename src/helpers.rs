@@ -22,13 +22,10 @@ use zip::ZipArchive;
 use std::slice::SliceConcatExt;
 use redis::{Commands, PipelineCommands};
 
-use iron::modifiers::Redirect;
 use iron::headers::Location;
 use iron::prelude::*;
 use iron::status;
 use iron::Url as iUrl;
-
-use url::Url;
 
 use hyper::client::Client;
 use hyper::header::qitem;
