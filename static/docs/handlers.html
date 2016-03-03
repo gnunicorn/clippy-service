@@ -1,0 +1,554 @@
+<!DOCTYPE html>
+
+<html>
+<head>
+  <title>handlers.rs</title>
+  <meta http-equiv="content-type" content="text/html; charset=UTF-8">
+  <meta name="viewport" content="width=device-width, target-densitydpi=160dpi, initial-scale=1.0; maximum-scale=1.0; user-scalable=0;">
+  <link rel="stylesheet" media="all" href="docco.css" />
+</head>
+<body>
+  <div id="container">
+    <div id="background"></div>
+    
+      <ul id="jump_to">
+        <li>
+          <a class="large" href="javascript:void(0);">Jump To &hellip;</a>
+          <a class="small" href="javascript:void(0);">+</a>
+          <div id="jump_wrapper">
+          <div id="jump_page_wrapper">
+            <div id="jump_page">
+              
+                
+                <a class="source" href="clippy.html">
+                  clippy.rs
+                </a>
+              
+                
+                <a class="source" href="github.html">
+                  github.rs
+                </a>
+              
+                
+                <a class="source" href="handlers.html">
+                  handlers.rs
+                </a>
+              
+                
+                <a class="source" href="helpers.html">
+                  helpers.rs
+                </a>
+              
+                
+                <a class="source" href="main.html">
+                  main.rs
+                </a>
+              
+            </div>
+          </div>
+        </li>
+      </ul>
+    
+    <ul class="sections">
+        
+          <li id="title">
+              <div class="annotation">
+                  <h1>handlers.rs</h1>
+              </div>
+          </li>
+        
+        
+        
+        <li id="section-1">
+            <div class="annotation">
+              
+              <div class="pilwrap ">
+                <a class="pilcrow" href="#section-1">&#182;</a>
+              </div>
+              <p>Handle incoming requests.</p>
+
+            </div>
+            
+            <div class="content"><div class='highlight'><pre><span class="hljs-keyword">extern</span> <span class="hljs-keyword">crate</span> iron;
+<span class="hljs-keyword">extern</span> <span class="hljs-keyword">crate</span> redis;
+<span class="hljs-keyword">extern</span> <span class="hljs-keyword">crate</span> rustc_serialize;
+<span class="hljs-keyword">extern</span> <span class="hljs-keyword">crate</span> hyper;
+<span class="hljs-keyword">extern</span> <span class="hljs-keyword">crate</span> url;
+
+<span class="hljs-keyword">extern</span> <span class="hljs-keyword">crate</span> router;
+
+<span class="hljs-keyword">use</span> std::vec::<span class="hljs-built_in">Vec</span>;
+<span class="hljs-keyword">use</span> rustc_serialize::json::Json;
+
+<span class="hljs-keyword">use</span> iron::modifiers::Redirect;
+<span class="hljs-keyword">use</span> iron::prelude::*;
+<span class="hljs-keyword">use</span> iron::status;
+<span class="hljs-keyword">use</span> iron::Url <span class="hljs-keyword">as</span> iUrl;
+
+<span class="hljs-keyword">use</span> hyper::client::Client;
+
+<span class="hljs-keyword">use</span> router::Router;
+
+<span class="hljs-keyword">use</span> std::slice::<span class="hljs-built_in">SliceConcatExt</span>;
+<span class="hljs-keyword">use</span> redis::{Commands, Value};
+
+<span class="hljs-keyword">use</span> helpers::{setup_redis, fetch, get_status_or,  local_redir, set_redis_cache};
+<span class="hljs-keyword">use</span> github::schedule_update <span class="hljs-keyword">as</span> schedule_github_update;</pre></div></div>
+            
+        </li>
+        
+        
+        <li id="section-2">
+            <div class="annotation">
+              
+              <div class="pilwrap ">
+                <a class="pilcrow" href="#section-2">&#182;</a>
+              </div>
+              <p>The base URL for our badges. We aren’t actually compiling them ourselfes,
+but are reusing the great shields.io service.</p>
+
+            </div>
+            
+            <div class="content"><div class='highlight'><pre><span class="hljs-keyword">static</span> BADGE_URL_BASE: &amp;<span class="hljs-symbol">'static</span> <span class="hljs-keyword">str</span> = <span class="hljs-string">"https://img.shields.io/badge/"</span>;</pre></div></div>
+            
+        </li>
+        
+        
+        <li id="section-3">
+            <div class="annotation">
+              
+              <div class="pilwrap ">
+                <a class="pilcrow" href="#section-3">&#182;</a>
+              </div>
+              <p>Github Finder
+Expand a branch name into the hash, cache the redirect for 5min
+<code>/github/:user/:repo/badge.svg =&gt; /github/:user/:repo/:sha/badge.svg</code></p>
+
+            </div>
+            
+            <div class="content"><div class='highlight'><pre><span class="hljs-keyword">pub</span> <span class="hljs-function"><span class="hljs-keyword">fn</span> <span class="hljs-title">github_finder</span></span>(req: &amp;<span class="hljs-keyword">mut</span> Request) -&gt; IronResult&lt;Response&gt; {</pre></div></div>
+            
+        </li>
+        
+        
+        <li id="section-4">
+            <div class="annotation">
+              
+              <div class="pilwrap ">
+                <a class="pilcrow" href="#section-4">&#182;</a>
+              </div>
+              <p>Learn the parameters given to the request</p>
+
+            </div>
+            
+            <div class="content"><div class='highlight'><pre>    <span class="hljs-keyword">let</span> router = req.extensions.get::&lt;Router&gt;().unwrap();
+    <span class="hljs-keyword">let</span> redis: redis::Connection = setup_redis();
+    <span class="hljs-keyword">let</span> hyper_client: Client = Client::new();
+
+    <span class="hljs-keyword">let</span> user = router.find(<span class="hljs-string">"user"</span>).unwrap();
+    <span class="hljs-keyword">let</span> repo = router.find(<span class="hljs-string">"repo"</span>).unwrap();
+    <span class="hljs-keyword">let</span> branch = router.find(<span class="hljs-string">"branch"</span>).unwrap_or(<span class="hljs-string">"master"</span>);
+    <span class="hljs-keyword">let</span> method = router.find(<span class="hljs-string">"method"</span>).unwrap_or(<span class="hljs-string">"badge.svg"</span>);</pre></div></div>
+            
+        </li>
+        
+        
+        <li id="section-5">
+            <div class="annotation">
+              
+              <div class="pilwrap ">
+                <a class="pilcrow" href="#section-5">&#182;</a>
+              </div>
+              <p>And the cache key we use to keep the map from branch-&gt;SHA</p>
+
+            </div>
+            
+            <div class="content"><div class='highlight'><pre>    <span class="hljs-keyword">let</span> redis_key = <span class="hljs-built_in">format!</span>(<span class="hljs-string">"cached-sha/github/{0}/{1}:{2}"</span>, user, repo, branch);</pre></div></div>
+            
+        </li>
+        
+        
+        <li id="section-6">
+            <div class="annotation">
+              
+              <div class="pilwrap ">
+                <a class="pilcrow" href="#section-6">&#182;</a>
+              </div>
+              <p>Let’s see if redis has this key. If it does, redirect the request
+directly</p>
+
+            </div>
+            
+            <div class="content"><div class='highlight'><pre>    <span class="hljs-keyword">match</span> redis.get(redis_key.to_owned()) {
+        <span class="hljs-literal">Ok</span>(Value::Data(sha)) =&gt; {
+            local_redir(&amp;<span class="hljs-built_in">format!</span>(<span class="hljs-string">"/github/sha/{0}/{1}/{2}/{3}"</span>,
+                                 user,
+                                 repo,
+                                 <span class="hljs-built_in">String</span>::from_utf8(sha).unwrap(),
+                                 method),
+                        &amp;req.url)
+        }</pre></div></div>
+            
+        </li>
+        
+        
+        <li id="section-7">
+            <div class="annotation">
+              
+              <div class="pilwrap ">
+                <a class="pilcrow" href="#section-7">&#182;</a>
+              </div>
+              <p>otherwise, we need to look up the current SHA for the branch</p>
+
+            </div>
+            
+            <div class="content"><div class='highlight'><pre>        _ =&gt; {
+            <span class="hljs-keyword">let</span> github_url = <span class="hljs-built_in">format!</span>(<span class="hljs-string">"https://api.github.com/repos/{0}/{1}/git/refs/heads/{2}"</span>,
+                                     user,
+                                     repo,
+                                     branch);</pre></div></div>
+            
+        </li>
+        
+        
+        <li id="section-8">
+            <div class="annotation">
+              
+              <div class="pilwrap ">
+                <a class="pilcrow" href="#section-8">&#182;</a>
+              </div>
+              <p>Fetch the content API request for the Github URL,
+Parse its JSON and try to find the <code>SHA</code>-key.</p>
+
+            </div>
+            
+            <div class="content"><div class='highlight'><pre>            <span class="hljs-keyword">if</span> <span class="hljs-keyword">let</span> <span class="hljs-literal">Some</span>(body) = fetch(&amp;hyper_client, &amp;github_url) {
+                <span class="hljs-keyword">if</span> <span class="hljs-keyword">let</span> <span class="hljs-literal">Ok</span>(json) = Json::from_str(&amp;body) {
+                    <span class="hljs-keyword">if</span> <span class="hljs-keyword">let</span> <span class="hljs-literal">Some</span>(&amp;Json::<span class="hljs-built_in">String</span>(<span class="hljs-keyword">ref</span> sha)) = json.find_path(&amp;[<span class="hljs-string">"object"</span>, <span class="hljs-string">"sha"</span>]) {</pre></div></div>
+            
+        </li>
+        
+        
+        <li id="section-9">
+            <div class="annotation">
+              
+              <div class="pilwrap ">
+                <a class="pilcrow" href="#section-9">&#182;</a>
+              </div>
+              <p>Once found, store the SHA in the cache and redirect
+the request to</p>
+
+            </div>
+            
+            <div class="content"><div class='highlight'><pre>                        set_redis_cache(&amp;redis, &amp;redis_key, &amp;sha);
+                        local_redir(&amp;<span class="hljs-built_in">format!</span>(<span class="hljs-string">"/github/sha/{0}/{1}/{2}/{3}"</span>,
+                                             user,
+                                             repo,
+                                             sha,
+                                             method),
+                                    &amp;req.url)
+                    } <span class="hljs-keyword">else</span> {</pre></div></div>
+            
+        </li>
+        
+        
+        <li id="section-10">
+            <div class="annotation">
+              
+              <div class="pilwrap ">
+                <a class="pilcrow" href="#section-10">&#182;</a>
+              </div>
+              <p>If we couldn’t find the SHA, then there is a problem
+we need to inform the user about. Usually this means
+they did a typo or the content moved – either way, we
+fire a 404 – Not Found.</p>
+
+            </div>
+            
+            <div class="content"><div class='highlight'><pre>                        warn!(<span class="hljs-string">"{}: SHA not found in JSON: {}"</span>, &amp;github_url, &amp;json);
+                        <span class="hljs-literal">Ok</span>(Response::with((status::NotFound,
+                                           <span class="hljs-built_in">format!</span>(<span class="hljs-string">"Couldn't find on Github {}"</span>, &amp;github_url))))
+                    }
+                } <span class="hljs-keyword">else</span> {
+                    warn!(<span class="hljs-string">"{}: Couldn't parse Githubs JSON response: {}"</span>,
+                          &amp;github_url,
+                          &amp;body);
+                    <span class="hljs-literal">Ok</span>(Response::with((status::InternalServerError,
+                                       <span class="hljs-string">"Couldn't parse Githubs JSON response"</span>)))
+                }
+            } <span class="hljs-keyword">else</span> {
+                <span class="hljs-literal">Ok</span>(Response::with((status::NotFound,
+                                   <span class="hljs-built_in">format!</span>(<span class="hljs-string">"Couldn't find on Github {}"</span>, &amp;github_url))))
+            }
+        }
+    }
+}</pre></div></div>
+            
+        </li>
+        
+        
+        <li id="section-11">
+            <div class="annotation">
+              
+              <div class="pilwrap ">
+                <a class="pilcrow" href="#section-11">&#182;</a>
+              </div>
+              <h2 id="github-handler">Github Handler</h2>
+<p>Handle the request for a status report of a user-repo-sha combination.
+Usually the request ends up here after having been redirected via the
+<code>github_finder</code>-handler.
+In this request is where the actual sausage is done.</p>
+
+            </div>
+            
+            <div class="content"><div class='highlight'><pre><span class="hljs-keyword">pub</span> <span class="hljs-function"><span class="hljs-keyword">fn</span> <span class="hljs-title">github_handler</span></span>(req: &amp;<span class="hljs-keyword">mut</span> Request) -&gt; IronResult&lt;Response&gt; {</pre></div></div>
+            
+        </li>
+        
+        
+        <li id="section-12">
+            <div class="annotation">
+              
+              <div class="pilwrap ">
+                <a class="pilcrow" href="#section-12">&#182;</a>
+              </div>
+              <p>First extract all the request information</p>
+
+            </div>
+            
+            <div class="content"><div class='highlight'><pre>    <span class="hljs-keyword">let</span> router = req.extensions.get::&lt;Router&gt;().unwrap();
+    <span class="hljs-keyword">let</span> redis: redis::Connection = setup_redis();
+
+    <span class="hljs-keyword">let</span> user = router.find(<span class="hljs-string">"user"</span>).unwrap();
+    <span class="hljs-keyword">let</span> repo = router.find(<span class="hljs-string">"repo"</span>).unwrap();
+    <span class="hljs-keyword">let</span> sha = router.find(<span class="hljs-string">"sha"</span>).unwrap();
+    <span class="hljs-keyword">let</span> filename: <span class="hljs-built_in">Vec</span>&lt;&amp;<span class="hljs-keyword">str</span>&gt; = router.find(<span class="hljs-string">"method"</span>)
+                                    .unwrap_or(<span class="hljs-string">"badge.svg"</span>)
+                                    .rsplitn(<span class="hljs-number">2</span>, <span class="hljs-string">'.'</span>)
+                                    .collect();
+    <span class="hljs-keyword">let</span> (method, ext) = <span class="hljs-keyword">match</span> filename.len() {
+        <span class="hljs-number">2</span> =&gt; (filename[<span class="hljs-number">1</span>], filename[<span class="hljs-number">0</span>]),
+        _ =&gt; (filename[<span class="hljs-number">0</span>], <span class="hljs-string">""</span>),
+    };</pre></div></div>
+            
+        </li>
+        
+        
+        <li id="section-13">
+            <div class="annotation">
+              
+              <div class="pilwrap ">
+                <a class="pilcrow" href="#section-13">&#182;</a>
+              </div>
+              <p>Use <code>get_status_or</code> to look up and map the cached result
+or trigger a <code>schedule_github_update</code> if that isn’t found yet</p>
+
+            </div>
+            
+            <div class="content"><div class='highlight'><pre>    <span class="hljs-keyword">let</span> result_key = <span class="hljs-built_in">format!</span>(<span class="hljs-string">"result/github/{0}/{1}:{2}"</span>, user, repo, sha);
+    <span class="hljs-keyword">let</span> (text, color): (<span class="hljs-built_in">String</span>, <span class="hljs-built_in">String</span>) = get_status_or(
+        redis.get(result_key.to_owned()),
+        || schedule_github_update(&amp;user, &amp;repo, &amp;sha));</pre></div></div>
+            
+        </li>
+        
+        
+        <li id="section-14">
+            <div class="annotation">
+              
+              <div class="pilwrap ">
+                <a class="pilcrow" href="#section-14">&#182;</a>
+              </div>
+              <p>Then render the response</p>
+
+            </div>
+            
+            <div class="content"><div class='highlight'><pre>    <span class="hljs-keyword">match</span> method {</pre></div></div>
+            
+        </li>
+        
+        
+        <li id="section-15">
+            <div class="annotation">
+              
+              <div class="pilwrap ">
+                <a class="pilcrow" href="#section-15">&#182;</a>
+              </div>
+              <p>If this is a simple request for status, just return the result</p>
+
+            </div>
+            
+            <div class="content"><div class='highlight'><pre>        <span class="hljs-string">"status"</span> =&gt; <span class="hljs-literal">Ok</span>(Response::with((status::<span class="hljs-literal">Ok</span>,
+                       <span class="hljs-built_in">String</span>::from_utf8(status).unwrap().to_owned()))),</pre></div></div>
+            
+        </li>
+        
+        
+        <li id="section-16">
+            <div class="annotation">
+              
+              <div class="pilwrap ">
+                <a class="pilcrow" href="#section-16">&#182;</a>
+              </div>
+              <p>for the badge, put text, color, base URL and query-parameters from the
+incoming requests together to the URL we need to forward it to</p>
+
+            </div>
+            
+            <div class="content"><div class='highlight'><pre>        <span class="hljs-string">"badge"</span> =&gt; {
+            <span class="hljs-keyword">let</span> target_badge = <span class="hljs-keyword">match</span> req.url.clone().query {
+                <span class="hljs-literal">Some</span>(query) =&gt; <span class="hljs-built_in">format!</span>(<span class="hljs-string">"{}clippy-{}-{}.{}?{}"</span>, BADGE_URL_BASE, text, color, ext, query),
+                _ =&gt; <span class="hljs-built_in">format!</span>(<span class="hljs-string">"{}clippy-{}-{}.{}"</span>, BADGE_URL_BASE, text, color, ext),
+            };</pre></div></div>
+            
+        </li>
+        
+        
+        <li id="section-17">
+            <div class="annotation">
+              
+              <div class="pilwrap ">
+                <a class="pilcrow" href="#section-17">&#182;</a>
+              </div>
+              <p>while linting, use only temporary redirects, so that the actual
+result will be asked for later</p>
+
+            </div>
+            
+            <div class="content"><div class='highlight'><pre>            <span class="hljs-literal">Ok</span>(Response::with((<span class="hljs-keyword">match</span> text.as_str() {
+                    <span class="hljs-string">"linting"</span> =&gt; status::TemporaryRedirect,
+                    _ =&gt; status::PermanentRedirect
+                },
+                    Redirect(iUrl::parse(&amp;target_badge).unwrap()))))
+        },</pre></div></div>
+            
+        </li>
+        
+        
+        <li id="section-18">
+            <div class="annotation">
+              
+              <div class="pilwrap ">
+                <a class="pilcrow" href="#section-18">&#182;</a>
+              </div>
+              <p>emojibadge and fullemojibadge do the same as the request for <code>badge</code>,
+except that they replace the status with appropriate emoji</p>
+
+            </div>
+            
+            <div class="content"><div class='highlight'><pre>        <span class="hljs-string">"emojibadge"</span> =&gt; {
+            <span class="hljs-keyword">let</span> emoji = <span class="hljs-keyword">match</span> text.as_str() {
+                <span class="hljs-string">"linting"</span> =&gt; <span class="hljs-string">"👷"</span>.to_string(),
+                <span class="hljs-string">"failed"</span> =&gt; <span class="hljs-string">"😱"</span>.to_string(),
+                <span class="hljs-string">"success"</span> =&gt; <span class="hljs-string">"👌"</span>.to_string(),
+                _ =&gt; text.replace(<span class="hljs-string">"errors"</span>, <span class="hljs-string">"🤕"</span>).replace(<span class="hljs-string">"warnings"</span>, <span class="hljs-string">"😟"</span>)
+            };
+
+            <span class="hljs-keyword">let</span> target_badge = <span class="hljs-keyword">match</span> req.url.clone().query {
+                <span class="hljs-literal">Some</span>(query) =&gt; <span class="hljs-built_in">format!</span>(<span class="hljs-string">"{}clippy-{}-{}.{}?{}"</span>, BADGE_URL_BASE, emoji, color, ext, query),
+                _ =&gt; <span class="hljs-built_in">format!</span>(<span class="hljs-string">"{}clippy-{}-{}.{}"</span>, BADGE_URL_BASE, emoji, color, ext),
+            };
+            <span class="hljs-literal">Ok</span>(Response::with((<span class="hljs-keyword">match</span> color.as_str() {
+                    <span class="hljs-string">"blue"</span> =&gt; status::TemporaryRedirect,
+                    _ =&gt; status::PermanentRedirect
+                },
+                    Redirect(iUrl::parse(&amp;target_badge).unwrap()))))
+        },
+        <span class="hljs-string">"fullemojibadge"</span> =&gt; {
+            <span class="hljs-keyword">let</span> emoji = <span class="hljs-keyword">match</span> text.as_str() {
+                <span class="hljs-string">"linting"</span> =&gt; <span class="hljs-string">"👷"</span>.to_string(),
+                <span class="hljs-string">"failed"</span> =&gt; <span class="hljs-string">"😱"</span>.to_string(),
+                <span class="hljs-string">"success"</span> =&gt; <span class="hljs-string">"👌"</span>.to_string(),
+                _ =&gt; text.replace(<span class="hljs-string">"errors"</span>, <span class="hljs-string">"🤕"</span>).replace(<span class="hljs-string">"warnings"</span>, <span class="hljs-string">"😟"</span>)
+            };
+
+            <span class="hljs-keyword">let</span> target_badge = <span class="hljs-keyword">match</span> req.url.clone().query {
+                <span class="hljs-literal">Some</span>(query) =&gt; <span class="hljs-built_in">format!</span>(<span class="hljs-string">"{}📎-{}-{}.{}?{}"</span>, BADGE_URL_BASE, emoji, color, ext, query),
+                _ =&gt; <span class="hljs-built_in">format!</span>(<span class="hljs-string">"{}📎-{}-{}.{}"</span>, BADGE_URL_BASE, emoji, color, ext),
+            };
+            <span class="hljs-literal">Ok</span>(Response::with((<span class="hljs-keyword">match</span> color.as_str() {
+                    <span class="hljs-string">"blue"</span> =&gt; status::TemporaryRedirect,
+                    _ =&gt; status::PermanentRedirect
+                },
+                    Redirect(iUrl::parse(&amp;target_badge).unwrap()))))
+        },</pre></div></div>
+            
+        </li>
+        
+        
+        <li id="section-19">
+            <div class="annotation">
+              
+              <div class="pilwrap ">
+                <a class="pilcrow" href="#section-19">&#182;</a>
+              </div>
+              <p>If the request is asking for the logs, fetch those. This isn’t particularly
+simple as the Redis library makes the unwrapping a little bit tricky and hard
+for rust to guess the proper types. So we have to specify the types and iterator
+rather explictly at times.</p>
+
+            </div>
+            
+            <div class="content"><div class='highlight'><pre>        <span class="hljs-string">"log"</span> =&gt; {
+            <span class="hljs-keyword">let</span> log_key = <span class="hljs-built_in">format!</span>(<span class="hljs-string">"log/github/{0}/{1}:{2}"</span>, user, repo, sha);
+            <span class="hljs-keyword">match</span> redis.lrange(log_key.to_owned(), <span class="hljs-number">0</span>, -<span class="hljs-number">1</span>) {
+                <span class="hljs-literal">Ok</span>(<span class="hljs-literal">Some</span>(Value::Bulk(logs))) =&gt; {
+                    <span class="hljs-keyword">let</span> logs: <span class="hljs-built_in">Vec</span>&lt;<span class="hljs-built_in">String</span>&gt; = logs.iter()
+                                                .map(|<span class="hljs-keyword">ref</span> v| {
+                                                    <span class="hljs-keyword">match</span> **v {
+                                                        Value::Data(<span class="hljs-keyword">ref</span> val) =&gt; {
+                                        <span class="hljs-built_in">String</span>::from_utf8(val.to_owned())
+                                            .unwrap()
+                                            .to_owned()
+                                    }
+                                                        _ =&gt; <span class="hljs-string">""</span>.to_owned(),
+                                                    }
+                                                })
+                                                .collect();
+                    <span class="hljs-literal">Ok</span>(Response::with((status::<span class="hljs-literal">Ok</span>, logs.join(<span class="hljs-string">"\n"</span>))))
+                }</pre></div></div>
+            
+        </li>
+        
+        
+        <li id="section-20">
+            <div class="annotation">
+              
+              <div class="pilwrap ">
+                <a class="pilcrow" href="#section-20">&#182;</a>
+              </div>
+              <p>if there aren’t any logs found, we might just started the
+process. Let the request know.</p>
+
+            </div>
+            
+            <div class="content"><div class='highlight'><pre>                _ =&gt; {
+                    <span class="hljs-literal">Ok</span>(Response::with((status::<span class="hljs-literal">Ok</span>, <span class="hljs-string">"Started. Please refresh"</span>)))
+                }
+            }
+        },</pre></div></div>
+            
+        </li>
+        
+        
+        <li id="section-21">
+            <div class="annotation">
+              
+              <div class="pilwrap ">
+                <a class="pilcrow" href="#section-21">&#182;</a>
+              </div>
+              <p>Nothing else is supported – but in rust, we have to return all things
+of the same type. So let’s return a <code>BadRequst</code> :) . </p>
+
+            </div>
+            
+            <div class="content"><div class='highlight'><pre>        _ =&gt; <span class="hljs-literal">Ok</span>(Response::with((status::BadRequest, <span class="hljs-built_in">format!</span>(<span class="hljs-string">"{} Not Implemented."</span>, method)))),
+    }
+}</pre></div></div>
+            
+        </li>
+        
+    </ul>
+  </div>
+</body>
+</html>
