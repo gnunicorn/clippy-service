@@ -1,13 +1,13 @@
-# Clippy
+# Clippy Service
 
-[![Build Status](https://travis-ci.org/ligthyear/clippy-service.svg?branch=master)](https://travis-ci.org/ligthyear/clippy-service) [![](https://img.shields.io/badge/Code%20Style-rustfmt-brightgreen.svg?style=flat-square)](https://github.com/rust-lang-nursery/rustfmt#configuring-rustfmt) ![](http://clippy.bashy.io/github/ligthyear/clippy-service/master/badge.svg?style=flat-square) 
+[![Build Status](https://travis-ci.org/ligthyear/clippy-service.svg?branch=master)](https://travis-ci.org/ligthyear/clippy-service) [![](https://img.shields.io/badge/Code%20Style-rustfmt-brightgreen.svg?style=flat-square)](https://github.com/rust-lang-nursery/rustfmt#configuring-rustfmt) ![](http://clippy.bashy.io/github/ligthyear/clippy-service/master/badge.svg?style=flat-square)
 
 ## Documentation
 
 Clippy has inline source code annotations and uses "docco" to render those into webpages. To update the rendered HTML to the latest version please run docco  from the repos root as follows:
 
 ```
-docco --languages etc/docco-langs.json -o static/docs src/*.rs
+docco -o static/docs src/*.rs
 ```
 
 Clippy automatically picks it up and hosts the latest version found in static/docs.
