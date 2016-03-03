@@ -27,7 +27,7 @@ h1 {
   border: 1px solid #aaa;
 }
 
-textarea{
+textarea {
   width: 100%;
   font-size: 1.2em;
   background: transparent;
@@ -51,13 +51,27 @@ footer img {
 a, a:hover a:visited {
   color: #2149D4;
 }
+
+#advanced {
+  display: none;
+}
 </style>
 <script>
+
+function set_label(id, value){
+  document.getElementById(id).innerHTML = value;
+}
 
 function update_output(username, repo, br, render, style){
   var base = document.location.protocol + "//" + document.location.host;
   var result = document.getElementById("result");
   var branch = br || "master";
+
+  set_label("render", render || "Markdown");
+  set_label("style", style || "flat");
+  set_label("badge", "badge");
+  document.getElementById("badge").src = base + "/github/ligthyear/clippy-service/badge.svg?style=" + style;
+
   if (!username || !repo) {
     result.innerHTML = "<em>Please provide username and repository</em>"
     return
@@ -69,13 +83,13 @@ function update_output(username, repo, br, render, style){
   var content = "";
 
   switch (render) {
-    case "asciidoc":
+    case "AsciiDoc":
       content = 'image:' + badge_url +'[link="' + log_url + '"]';
       break;
-    case "rst":
+    case "ReStructured Text":
       content = '.. image::' + badge_url + ':target:' + log_url;
       break;
-    case "link":
+    case "RawLink":
       content = '<a href="' + log_url +'"><img alt="Clippy Linting Result" src="'+ badge_url +'" /></a>'
       break;
     default:
@@ -85,6 +99,12 @@ function update_output(username, repo, br, render, style){
   }
 
    result.innerHTML = "<p>Just add this to your readme:<br/><textarea readonly>" + content + "</textarea></p>";
+}
+
+function toggleAdvanced(ev) {
+  // ev.preventDefault();
+  var elem =  document.getElementById("advanced");
+  elem.style.display = elem.style.display == "block" ? "none" : "block";
 }
 
 </script>
@@ -97,29 +117,52 @@ function update_output(username, repo, br, render, style){
 
       <p>
         github.com / <input name="username" type="text" placeholder="username" /> / <input name="repo" type="text" placeholder="repo" /> : <input type="text" name="branch" placeholder="master" />
-        <select onChange="update_output(username.value, repo.value, branch.value, render.value, this.value);" name="style">
-          <option value="plastic">plastic style
-          </option><option value="" selected="">flat style
-          </option><option value="flat-square">flat-square style
-        </option>
-      </select>
       </p>
 
-      <p>
-        <label>
-          <input onChange="update_output(username.value, repo.value, branch.value, render.value, style.value);" type="radio" checked name="render" value="markdown" /> Markdown (.md)
-        </label>
-        <label>
-          <input onChange="update_output(username.value, repo.value, branch.value, render.value, style.value);" type="radio" name="render" value="rst" /> ReST (.rst)
-        </label>
-        <label>
-          <input onChange="update_output(username.value, repo.value, branch.value, render.value, style.value);" type="radio" name="render" value="asciidoc" /> AsciiDoc (.adoc)
-        </label>
-        <label>
-          <input onChange="update_output(username.value, repo.value, branch.value, render.value, style.value);" type="radio" name="render" value="link" /> Link (raw)
-        </label>
-      </p>
+      <div class="options">
+          Rendering <span id="render"></span> <span id="style">flat style</span> <span id="method">badge</span> : <img id="badge" title="Example" src="" /> <a onClick="toggleAdvanced(this)">edit</a>
+        <div id="advanced">
+
+          <p>
+            Badge Style
+
+            <label>
+              <input onChange="update_output(username.value, repo.value, branch.value, render.value, style.value);" type="radio" name="style" value="plastic" /> plastic
+            </label>
+
+            <label>
+              <input onChange="update_output(username.value, repo.value, branch.value, render.value, style.value);" type="radio" checked name="style" value="" /> flat
+            </label>
+
+            <label>
+              <input onChange="update_output(username.value, repo.value, branch.value, render.value, style.value);" type="radio" name="style" value="flat-square" /> flat square
+            </label>
+
+          </p>
+
+          <p>
+            Render as:
+            <label>
+              <input onChange="update_output(username.value, repo.value, branch.value, render.value, style.value);" type="radio" checked name="render" value="Markdown" /> Markdown (.md)
+            </label>
+            <label>
+              <input onChange="update_output(username.value, repo.value, branch.value, render.value, style.value);" type="radio" name="render" value="ReStructured Text" /> ReST (.rst)
+            </label>
+            <label>
+              <input onChange="update_output(username.value, repo.value, branch.value, render.value, style.value);" type="radio" name="render" value="AsciiDoc" /> AsciiDoc (.adoc)
+            </label>
+            <label>
+              <input onChange="update_output(username.value, repo.value, branch.value, render.value, style.value);" type="radio" name="render" value="RawLink" /> Link (raw)
+            </label>
+          </p>
+
+        </div>
+      </div>
+
+
+
       <hr />
+
 
       <output id="result" name="result"></output>
 
