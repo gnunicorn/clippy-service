@@ -1,4 +1,4 @@
-/// Run as an application, this is the starting point for our app
+// Handle incoming requests.
 extern crate iron;
 extern crate redis;
 extern crate rustc_serialize;
@@ -25,12 +25,17 @@ use redis::{Commands, Value};
 use helpers::{setup_redis, fetch, get_status_or,  local_redir, set_redis_cache};
 use github::schedule_update as schedule_github_update;
 
+// The base URL for our badges. We aren't actually compiling them ourselfes,
+// but are reusing the great shields.io service.
 static BADGE_URL_BASE: &'static str = "https://img.shields.io/badge/";
 
+
+// Github Finder
+// Expand a branch name into the hash, cache the redirect for 5min
+// `/github/:user/:repo/badge.svg => /github/:user/:repo/:sha/badge.svg`
 pub fn github_finder(req: &mut Request) -> IronResult<Response> {
 
-    // expand a branch name into the hash, keep the redirect for 5min
-
+    // Learn the parameters given to the request
     let router = req.extensions.get::<Router>().unwrap();
     let redis: redis::Connection = setup_redis();
     let hyper_client: Client = Client::new();
@@ -40,10 +45,12 @@ pub fn github_finder(req: &mut Request) -> IronResult<Response> {
     let branch = router.find("branch").unwrap_or("master");
     let method = router.find("method").unwrap_or("badge.svg");
 
+    // And the cache key we use to keep the map from branch->SHA
     let redis_key = format!("cached-sha/github/{0}/{1}:{2}", user, repo, branch);
 
+    // Let's see if redis has this key. If it does, redirect the request
+    // directly
     match redis.get(redis_key.to_owned()) {
-        // we have a cached value, redirect directly
         Ok(Value::Data(sha)) => {
             local_redir(&format!("/github/sha/{0}/{1}/{2}/{3}",
                                  user,
@@ -52,14 +59,19 @@ pub fn github_finder(req: &mut Request) -> IronResult<Response> {
                                  method),
                         &req.url)
         }
+        // otherwise, we need to look up the current SHA for the branch
         _ => {
             let github_url = format!("https://api.github.com/repos/{0}/{1}/git/refs/heads/{2}",
                                      user,
                                      repo,
                                      branch);
+            // Fetch the content API request for the Github URL,
+            // Parse its JSON and try to find the `SHA`-key.
             if let Some(body) = fetch(&hyper_client, &github_url) {
                 if let Ok(json) = Json::from_str(&body) {
                     if let Some(&Json::String(ref sha)) = json.find_path(&["object", "sha"]) {
+                        // Once found, store the SHA in the cache and redirect
+                        // the request to
                         set_redis_cache(&redis, &redis_key, &sha);
                         local_redir(&format!("/github/sha/{0}/{1}/{2}/{3}",
                                              user,
@@ -68,6 +80,10 @@ pub fn github_finder(req: &mut Request) -> IronResult<Response> {
                                              method),
                                     &req.url)
                     } else {
+                        // If we couldn't find the SHA, then there is a problem
+                        // we need to inform the user about. Usually this means
+                        // they did a typo or the content moved – either way, we
+                        // fire a 404 – Not Found.
                         warn!("{}: SHA not found in JSON: {}", &github_url, &json);
                         Ok(Response::with((status::NotFound,
                                            format!("Couldn't find on Github {}", &github_url))))
@@ -87,9 +103,14 @@ pub fn github_finder(req: &mut Request) -> IronResult<Response> {
     }
 }
 
-
+// ## Github Handler
+// Handle the request for a status report of a user-repo-sha combination.
+// Usually the request ends up here after having been redirected via the
+// `github_finder`-handler.
+// In this request is where the actual sausage is done.
 pub fn github_handler(req: &mut Request) -> IronResult<Response> {
 
+    // First extract all the request information
     let router = req.extensions.get::<Router>().unwrap();
     let redis: redis::Connection = setup_redis();
 
@@ -105,30 +126,35 @@ pub fn github_handler(req: &mut Request) -> IronResult<Response> {
         _ => (filename[0], ""),
     };
 
-    let redis_key = format!("{0}/github/{1}/{2}:{3}", method, user, repo, sha);
+    // Use `get_status_or` to look up and map the cached result
+    // or trigger a `schedule_github_update` if that isn't found yet
     let result_key = format!("result/github/{0}/{1}:{2}", user, repo, sha);
-    let scheduler =  || schedule_github_update(&user, &repo, &sha);
+    let (text, color): (String, String) = get_status_or(
+        redis.get(result_key.to_owned()),
+        || schedule_github_update(&user, &repo, &sha));
 
-
+    // Then render the response
     match method {
+        // If this is a simple request for status, just return the result
+        "status" => Ok(Response::with((status::Ok, text.to_owned()))),
+        // for the badge, put text, color, base URL and query-parameters from the
+        // incoming requests together to the URL we need to forward it to
         "badge" => {
-            // if this is a badge, then we might have a cached version
-            let (text, color): (String, String) = get_status_or(redis.get(result_key.to_owned()), scheduler);
-
             let target_badge = match req.url.clone().query {
                 Some(query) => format!("{}clippy-{}-{}.{}?{}", BADGE_URL_BASE, text, color, ext, query),
                 _ => format!("{}clippy-{}-{}.{}", BADGE_URL_BASE, text, color, ext),
             };
+            // while linting, use only temporary redirects, so that the actual
+            // result will be asked for later
             Ok(Response::with((match text.as_str() {
                     "linting" => status::TemporaryRedirect,
                     _ => status::PermanentRedirect
                 },
                     Redirect(iUrl::parse(&target_badge).unwrap()))))
         },
+        // emojibadge and fullemojibadge do the same as the request for `badge`,
+        // except that they replace the status with appropriate emoji
         "emojibadge" => {
-            // if this is a badge, then we might have a cached version
-            let (text, color): (String, String) = get_status_or(redis.get(result_key.to_owned()), scheduler);
-
             let emoji = match text.as_str() {
                 "linting" => "👷".to_string(),
                 "failed" => "😱".to_string(),
@@ -147,9 +173,6 @@ pub fn github_handler(req: &mut Request) -> IronResult<Response> {
                     Redirect(iUrl::parse(&target_badge).unwrap()))))
         },
         "fullemojibadge" => {
-            // if this is a badge, then we might have a cached version
-            let (text, color): (String, String) = get_status_or(redis.get(result_key.to_owned()), scheduler);
-
             let emoji = match text.as_str() {
                 "linting" => "👷".to_string(),
                 "failed" => "😱".to_string(),
@@ -167,50 +190,37 @@ pub fn github_handler(req: &mut Request) -> IronResult<Response> {
                 },
                     Redirect(iUrl::parse(&target_badge).unwrap()))))
         },
+        // If the request is asking for the logs, fetch those. This isn't particularly
+        // simple as the Redis library makes the unwrapping a little bit tricky and hard
+        // for rust to guess the proper types. So we have to specify the types and iterator
+        // rather explictly at times.
         "log" => {
-            match redis.lrange(redis_key.to_owned(), 0, -1) {
+            let log_key = format!("log/github/{0}/{1}:{2}", user, repo, sha);
+            match redis.lrange(log_key.to_owned(), 0, -1) {
                 Ok(Some(Value::Bulk(logs))) => {
-                    match logs.len() {
-                        0 => {
-                            schedule_github_update(&user, &repo, &sha);
-                            Ok(Response::with((status::Ok, "Started. Please refresh")))
-                        }
-                        _ => {
-                            let logs: Vec<String> = logs.iter()
-                                                        .map(|ref v| {
-                                                            match **v {
-                                                                Value::Data(ref val) => {
-                                                String::from_utf8(val.to_owned())
-                                                    .unwrap()
-                                                    .to_owned()
-                                            }
-                                                                _ => "".to_owned(),
-                                                            }
-                                                        })
-                                                        .collect();
-                            Ok(Response::with((status::Ok, logs.join("\n"))))
-                        }
-                    }
+                    let logs: Vec<String> = logs.iter()
+                                                .map(|ref v| {
+                                                    match **v {
+                                                        Value::Data(ref val) => {
+                                        String::from_utf8(val.to_owned())
+                                            .unwrap()
+                                            .to_owned()
+                                    }
+                                                        _ => "".to_owned(),
+                                                    }
+                                                })
+                                                .collect();
+                    Ok(Response::with((status::Ok, logs.join("\n"))))
                 }
+                // if there aren't any logs found, we might just started the
+                // process. Let the request know.
                 _ => {
-                    schedule_github_update(&user, &repo, &sha);
                     Ok(Response::with((status::Ok, "Started. Please refresh")))
                 }
             }
-        }
-        "status" => {
-            let redis_key = format!("result/github/{0}/{1}:{2}", user, repo, sha).to_owned();
-
-            match redis.get(redis_key.to_owned()) {
-                Ok(Some(Value::Data(status))) => {
-                    Ok(Response::with((status::Ok, String::from_utf8(status).unwrap().to_owned())))
-                }
-                _ => {
-                    schedule_github_update(&user, &repo, &sha);
-                    Ok(Response::with((status::Ok, "linting")))
-                }
-            }
-        }
+        },
+        // Nothing else is supported – but in rust, we have to return all things
+        // of the same type. So let's return a `BadRequst` :) .
         _ => Ok(Response::with((status::BadRequest, format!("{} Not Implemented.", method)))),
     }
 }
