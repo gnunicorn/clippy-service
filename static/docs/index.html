@@ -10,11 +10,73 @@
 <body>
   <div style="max-width:960px; margin: 0 auto">
 
-    <h1>Welcome</h1>
+    <h1>The Clippy Service Documentation</h1>
     <p>
-      Normal paragraph.
+      This document gives an overview of the various features and parts of the clippy service documentation. Especially, we want to give you easy access to some of the more tricky features this service provides and how you could solve them.
+    </p>
+    <h2>File Structure</h2>
+    <p>
+      The project is split into multiple files, all having full code documentation. The following files are in the repository:
     </p>
 
+    <ul>
+      <li>
+        <a href="main.html">main.rs</a>: the entry point for this - and any – rust app, defining the modules, importing the handlers and starting the Iron server.
+      </li>
+      <li>
+        <a href="handlers.html">handlers.rs</a>: the handlers to be served
+      </li>
+      <li>
+        <a href="github.html">github.rs</a>: the github specific backend code, fetching github SHA and redirecting properly
+      </li>
+      <li>
+        <a href="clippy.html">clippy.rs</a>: the clippy subprocess runner and output parser
+      </li>
+      <li>
+        <a href="helpers.html">helpers.rs</a>: general purpose helper functions used at various places – like redis setup.
+      </li>
+    </ul>
+
+
+    <h2>Features</h2>
+    <p>
+      If you are interested in one specific feature this service provides and how we solved this, take a look at this list with pointers to the documentation to look at
+    </p>
+    <ul>
+      <li>
+        <a href="#">Redis Support</a>
+      </li>
+      <li>
+        <a href="#">Temporary Folders</a>
+      </li>
+      <li>
+        <a href="#">Sub Processes</a> (in Firejail) with output parsing
+      </li>
+      <li>
+        HTTP Requests to <a href="#">Github</a> with JSON Parsing
+      </li>
+      <li>
+        <a href="#">In Memory Unzipping</a> of Downloaded Content
+      </li>
+    </ul>
+
+    <h2>Infrastructure / Deploying</h2>
+    <p>
+      As clippy requires features only available in rust nightly, we have to deploy with that nightly version. To build and run the project we have a <a href="http://www.docker.com/">Docker Setup</a>, running on a <a href="http://dokku.viewdocs.io/dokku/">Dokku instance</a>, which is automatically deployed using travis.
+    </p>
+    <p>
+      As we have the same requirement in Development, we provide a Rust-Nightly Vagrant setup, which already preinstalls the neede Redis-Server.
+    </p>
+    <ul>
+      <li>
+        <a href="https://github.com/ligthyear/clippy-service/blob/master/Dockerfile">Dockerfile</a>
+      </li>
+      <li>
+        <a href="https://github.com/ligthyear/clippy-service/blob/master/.travis.yml">.travis.yml</a>
+      </li>
+      <li>
+        <a href="https://github.com/ligthyear/clippy-service/blob/master/Vagrantfile">Vagrantfile</a>
+      </li>
   </div>
 </body
 </html>
