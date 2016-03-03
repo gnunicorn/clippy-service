@@ -6,6 +6,7 @@
   <meta http-equiv="content-type" content="text/html; charset=UTF-8">
   <meta name="viewport" content="width=device-width, target-densitydpi=160dpi, initial-scale=1.0; maximum-scale=1.0; user-scalable=0;">
   <link rel="stylesheet" media="all" href="docs/docco.css" />
+  <link rel="shortcut icon" type="image/x-icon" href="/favicon.ico"> 
 </head>
 <style>
 body{
@@ -13,13 +14,8 @@ body{
   max-width: 960px;
   margin: 0 auto;
 }
-h1 {
-  font-size: 4em;
-  display: inline-block;
-  border: 2px #6B9367 solid;
-  padding: 0.5em;
-  background: #6edb46;
-  border-radius: 100%;
+.logo {
+  height: 5em;
 }
 .boxed {
   margin-top: 2em;
@@ -110,8 +106,8 @@ function toggleAdvanced(ev) {
 
 </script>
 <body onload="update_output()">
-    <h1>📎</h1>
-    <p>Linting service for your <a href="http://www.rust-lang.org" target="_blank">Rust</a> Project</p>
+    <h1><img class="logo" alt="📎" title="📎" src="logo.svg"/></h1>
+    <p><a href="https://github.com/Manishearth/rust-clippy" target="_blank">Clippy</a> Linting Service for your <a href="http://www.rust-lang.org" target="_blank">Rust</a> Project</p>
 
   <div class="boxed">
     <form oninput="update_output(username.value, repo.value, branch.value, render.value, style.value, badge.value);">
@@ -177,13 +173,29 @@ function toggleAdvanced(ev) {
         </div>
       </div>
 
-
-
       <hr />
-
 
       <output id="result" name="result"></output>
 
+    </div>
+
+    <div class="boxed">
+      <h3>Like what you see?</h3>
+      <p>
+        <img src="/github/ligthyear/clippy-service/badge.svg?style=flat-square" title="" />
+        <iframe src="http://ghbtns.com/github-btn.html?user=ligthyear&repo=clippy-service&type=watch&count=none&size=none" allowtransparency="true" frameborder="0" scrolling="0" width="50" height="20"></iframe>
+        <a href="https://twitter.com/share" class="twitter-share-button" data-via="bashyHQ" data-related="bashyHQ">Tweet</a>
+<script>!function(d,s,id){var js,fjs=d.getElementsByTagName(s)[0],p=/^http:/.test(d.location)?'http':'https';if(!d.getElementById(id)){js=d.createElement(s);js.id=id;js.src=p+'://platform.twitter.com/widgets.js';fjs.parentNode.insertBefore(js,fjs);}}(document, 'script', 'twitter-wjs');</script>
+</a>
+      </p>
+      <p>
+
+        <iframe src="https://ghbtns.com/github-btn.html?user=bashyHQ&type=follow&count=none&size=none" frameborder="0" scrolling="0" width="130px" height="20px"></iframe>
+        <a href="https://twitter.com/BashyHQ" class="twitter-follow-button" data-show-count="false">Follow @BashyHQ</a>
+<script>!function(d,s,id){var js,fjs=d.getElementsByTagName(s)[0],p=/^http:/.test(d.location)?'http':'https';if(!d.getElementById(id)){js=d.createElement(s);js.id=id;js.src=p+'://platform.twitter.com/widgets.js';fjs.parentNode.insertBefore(js,fjs);}}(document, 'script', 'twitter-wjs');</script>
+      </p>
+
+         Licensed under AGPL 3.0 – <a href="https://github.com/ligthyear/clippy-service/">Github Source here</a>
     </div>
 
     <div class="boxed">
@@ -198,8 +210,9 @@ function toggleAdvanced(ev) {
 
     <footer>
       <p>
-        <img title="Bashy Logo" src="http://www.bashy.io/assets/bashy.svg" alt="Bashy Logo Image">
-        © 2016 <a href="http://www.bashy.io/" target="_blank">The Bashy Initiative</a>, Licensed under AGPL 3.0 – <a href="https://github.com/ligthyear/clippy-service/">Github Source here</a>.
+        Logo inspired by <a href="https://http://logodust.com/">Fairpixels Logodust</a>,
+        Code, Design and Development by <a href="http://www.create-build-execute.com/">Benjamin Kampmann</a><br />
+        <img title="Bashy Logo" src="http://www.bashy.io/assets/bashy.svg" alt="Bashy Logo Image" > © 2016 <a href="http://www.bashy.io/" target="_blank">The Bashy Initiative</a>
       </p>
     </footer>
 
