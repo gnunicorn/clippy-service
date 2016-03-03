@@ -22,7 +22,7 @@ use router::Router;
 use std::slice::SliceConcatExt;
 use redis::{Commands, Value};
 
-use helpers::{setup_redis, fetch, local_redir, set_redis_cache};
+use helpers::{setup_redis, fetch, get_status_or,  local_redir, set_redis_cache};
 use github::schedule_update as schedule_github_update;
 
 static BADGE_URL_BASE: &'static str = "https://img.shields.io/badge/";
@@ -106,39 +106,24 @@ pub fn github_handler(req: &mut Request) -> IronResult<Response> {
     };
 
     let redis_key = format!("{0}/github/{1}/{2}:{3}", method, user, repo, sha);
+    let result_key = format!("result/github/{0}/{1}:{2}", user, repo, sha);
+    let scheduler =  || schedule_github_update(&user, &repo, &sha);
+
 
     match method {
         "badge" => {
             // if this is a badge, then we might have a cached version
-            let redis_key = format!("result/github/{0}/{1}:{2}", user, repo, sha).to_owned();
-            let url = match redis.get(redis_key.to_owned()) {
-                Ok(Some(Value::Data(status))) => {
-                    let status = String::from_utf8(status).unwrap().to_owned();
-                    format!("{}clippy-{}-{}", BADGE_URL_BASE, status, match status.as_str() {
-                        "success" => "brightgreen",
-                        "failed" => "red",
-                        "linting" => "blue",
-                        _ => {
-                            if status.ends_with("errors") {
-                                "red"
-                            } else { // warnings
-                                "yellow"
-                            }
-                        }
-                    })
-                }
-                _ => {
-                    schedule_github_update(&user, &repo, &sha);
-                    format!("{}clippy-linting-blue", BADGE_URL_BASE)
-                }
-            };
+            let (text, color): (String, String) = get_status_or(redis.get(result_key.to_owned()), scheduler);
 
             let target_badge = match req.url.clone().query {
-                Some(query) => format!("{}.{}?{}", url, ext, query),
-                _ => format!("{}.{}", url, ext),
+                Some(query) => format!("{}clippy-{}-{}.{}?{}", BADGE_URL_BASE, text, color, ext, query),
+                _ => format!("{}clippy-{}-{}.{}", BADGE_URL_BASE, text, color, ext),
             };
-            Ok(Response::with((status::TemporaryRedirect,
-                               Redirect(iUrl::parse(&target_badge).unwrap()))))
+            Ok(Response::with((match text.as_str() {
+                    "linting" => status::TemporaryRedirect,
+                    _ => status::PermanentRedirect
+                },
+                    Redirect(iUrl::parse(&target_badge).unwrap()))))
         },
         "log" => {
             match redis.lrange(redis_key.to_owned(), 0, -1) {

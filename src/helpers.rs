@@ -20,7 +20,7 @@ use time::now_utc;
 use zip::ZipArchive;
 
 use std::slice::SliceConcatExt;
-use redis::{Commands, PipelineCommands};
+use redis::{Commands, RedisResult, PipelineCommands, Value};
 
 use iron::headers::Location;
 use iron::prelude::*;
@@ -97,6 +97,32 @@ pub fn set_redis_cache(redis: &redis::Connection, key: &str, value: &str) {
         .cmd("SET").arg(key.clone()).arg(value).ignore()
         .cmd("EXPIRE").arg(key.clone()).arg(5 * 60).ignore() // we expire in 5min
         .execute(redis);
+}
+
+
+pub fn get_status_or<F>(result: RedisResult<Option<Value>>, trigger: F) -> (String, String)
+    where F: Fn() {
+    match result {
+        Ok(Some(Value::Data(status))) => {
+            let status = String::from_utf8(status).unwrap().to_owned();
+            (status.clone(), String::from(match status.as_str() {
+                "success" => "brightgreen",
+                "failed" => "red",
+                "linting" => "blue",
+                _ => {
+                    if status.ends_with("errors") {
+                        "red"
+                    } else { // warnings
+                        "yellow"
+                    }
+                }
+            }))
+        }
+        _ => {
+            trigger();
+            (String::from("linting"), String::from("blue"))
+        }
+    }
 }
 
 pub fn local_redir(url: &str, source_url: &iUrl) -> IronResult<Response> {
