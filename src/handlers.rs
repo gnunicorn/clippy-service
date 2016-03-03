@@ -125,6 +125,48 @@ pub fn github_handler(req: &mut Request) -> IronResult<Response> {
                 },
                     Redirect(iUrl::parse(&target_badge).unwrap()))))
         },
+        "emojibadge" => {
+            // if this is a badge, then we might have a cached version
+            let (text, color): (String, String) = get_status_or(redis.get(result_key.to_owned()), scheduler);
+
+            let emoji = match text.as_str() {
+                "linting" => "👷".to_string(),
+                "failed" => "😱".to_string(),
+                "success" => "👌".to_string(),
+                _ => text.replace("errors", "🤕").replace("warnings", "😟")
+            };
+
+            let target_badge = match req.url.clone().query {
+                Some(query) => format!("{}clippy-{}-{}.{}?{}", BADGE_URL_BASE, emoji, color, ext, query),
+                _ => format!("{}clippy-{}-{}.{}", BADGE_URL_BASE, emoji, color, ext),
+            };
+            Ok(Response::with((match color.as_str() {
+                    "blue" => status::TemporaryRedirect,
+                    _ => status::PermanentRedirect
+                },
+                    Redirect(iUrl::parse(&target_badge).unwrap()))))
+        },
+        "fullemojibadge" => {
+            // if this is a badge, then we might have a cached version
+            let (text, color): (String, String) = get_status_or(redis.get(result_key.to_owned()), scheduler);
+
+            let emoji = match text.as_str() {
+                "linting" => "👷".to_string(),
+                "failed" => "😱".to_string(),
+                "success" => "👌".to_string(),
+                _ => text.replace("errors", "🤕").replace("warnings", "😟")
+            };
+
+            let target_badge = match req.url.clone().query {
+                Some(query) => format!("{}📎-{}-{}.{}?{}", BADGE_URL_BASE, emoji, color, ext, query),
+                _ => format!("{}📎-{}-{}.{}", BADGE_URL_BASE, emoji, color, ext),
+            };
+            Ok(Response::with((match color.as_str() {
+                    "blue" => status::TemporaryRedirect,
+                    _ => status::PermanentRedirect
+                },
+                    Redirect(iUrl::parse(&target_badge).unwrap()))))
+        },
         "log" => {
             match redis.lrange(redis_key.to_owned(), 0, -1) {
                 Ok(Some(Value::Bulk(logs))) => {

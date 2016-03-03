@@ -62,15 +62,16 @@ function set_label(id, value){
   document.getElementById(id).innerHTML = value;
 }
 
-function update_output(username, repo, br, render, style){
+function update_output(username, repo, br, render, style, bg){
   var base = document.location.protocol + "//" + document.location.host;
   var result = document.getElementById("result");
   var branch = br || "master";
+  var badge = bg || "badge";
 
   set_label("render", render || "Markdown");
   set_label("style", style || "flat");
-  set_label("badge", "badge");
-  document.getElementById("badge").src = base + "/github/ligthyear/clippy-service/badge.svg?style=" + style;
+  set_label("badge", badge);
+  document.getElementById("badge").src = base + "/github/ligthyear/clippy-service/" + badge + ".svg?style=" + style;
 
   if (!username || !repo) {
     result.innerHTML = "<em>Please provide username and repository</em>"
@@ -78,7 +79,7 @@ function update_output(username, repo, br, render, style){
   }
 
   var main_url = base + "/github/" + username + "/" + repo + "/" + branch + "/";
-  var badge_url = main_url + "badge.svg" + (style ? "?style=" + style : "");
+  var badge_url = main_url + badge + ".svg" + (style ? "?style=" + style : "");
   var log_url = main_url + "log";
   var content = "";
 
@@ -113,7 +114,7 @@ function toggleAdvanced(ev) {
     <p>Linting service for your <a href="http://www.rust-lang.org" target="_blank">Rust</a> Project</p>
 
   <div class="boxed">
-    <form oninput="update_output(username.value, repo.value, branch.value, render.value, style.value);">
+    <form oninput="update_output(username.value, repo.value, branch.value, render.value, style.value, badge.value);">
 
       <p>
         github.com / <input name="username" type="text" placeholder="username" /> / <input name="repo" type="text" placeholder="repo" /> : <input type="text" name="branch" placeholder="master" />
@@ -124,35 +125,52 @@ function toggleAdvanced(ev) {
         <div id="advanced">
 
           <p>
-            Badge Style
+            Badge
 
             <label>
-              <input onChange="update_output(username.value, repo.value, branch.value, render.value, style.value);" type="radio" name="style" value="plastic" /> plastic
+              <input onChange="update_output(username.value, repo.value, branch.value, render.value, style.value, this.value);" type="radio" name="badge" value="badge" checked /> text badge
             </label>
 
             <label>
-              <input onChange="update_output(username.value, repo.value, branch.value, render.value, style.value);" type="radio" checked name="style" value="" /> flat
+              <input onChange="update_output(username.value, repo.value, branch.value, render.value, style.value, this.value);" type="radio" name="badge" value="emojibadge" /> emojibadge
             </label>
 
             <label>
-              <input onChange="update_output(username.value, repo.value, branch.value, render.value, style.value);" type="radio" name="style" value="flat-square" /> flat square
+              <input onChange="update_output(username.value, repo.value, branch.value, render.value, style.value, this.value);" type="radio" name="badge" value="fullemojibadge" /> full emojibadge
             </label>
 
           </p>
 
           <p>
-            Render as:
+            Badge Style
+
             <label>
-              <input onChange="update_output(username.value, repo.value, branch.value, render.value, style.value);" type="radio" checked name="render" value="Markdown" /> Markdown (.md)
+              <input onChange="update_output(username.value, repo.value, branch.value, render.value, this.value, badge.value);" type="radio" name="style" value="plastic" /> plastic
+            </label>
+
+            <label>
+              <input onChange="update_output(username.value, repo.value, branch.value, render.value, this.value, badge.value);" type="radio" checked name="style" value="" /> flat
+            </label>
+
+            <label>
+              <input onChange="update_output(username.value, repo.value, branch.value, render.value, this.value, badge.value);" type="radio" name="style" value="flat-square" /> flat square
+            </label>
+
+          </p>
+
+          <p>
+            Output as:
+            <label>
+              <input onChange="update_output(username.value, repo.value, branch.value, render.value, style.value, badge.value);" type="radio" checked name="render" value="Markdown" /> Markdown (.md)
             </label>
             <label>
-              <input onChange="update_output(username.value, repo.value, branch.value, render.value, style.value);" type="radio" name="render" value="ReStructured Text" /> ReST (.rst)
+              <input onChange="update_output(username.value, repo.value, branch.value, render.value, style.value, badge.value);" type="radio" name="render" value="ReStructured Text" /> ReST (.rst)
             </label>
             <label>
-              <input onChange="update_output(username.value, repo.value, branch.value, render.value, style.value);" type="radio" name="render" value="AsciiDoc" /> AsciiDoc (.adoc)
+              <input onChange="update_output(username.value, repo.value, branch.value, render.value, style.value, badge.value);" type="radio" name="render" value="AsciiDoc" /> AsciiDoc (.adoc)
             </label>
             <label>
-              <input onChange="update_output(username.value, repo.value, branch.value, render.value, style.value);" type="radio" name="render" value="RawLink" /> Link (raw)
+              <input onChange="update_output(username.value, repo.value, branch.value, render.value, style.value, badge.value);" type="radio" name="render" value="RawLink" /> Link (raw)
             </label>
           </p>
 
