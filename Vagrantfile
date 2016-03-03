@@ -43,7 +43,7 @@ Vagrant.configure(2) do |config|
   # use rustup.sh to install nightly.
   config.vm.provision "shell", inline: "curl -sO https://static.rust-lang.org/rustup.sh && sh rustup.sh --yes --channel=nightly"
 
-  config.vm.provision "shell", inline: <<firejail
+  config.vm.provision "shell", inline: <<FIREJAIL
   cd /vagrant
   sh etc/install_firejail.sh
 FIREJAIL
