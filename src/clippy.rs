@@ -12,18 +12,11 @@ use std::{env, fs};
 
 // Enum describing the State of the Clippy result,
 // whether everything went fine or if warnings or
-// errors were found.
-pub enum ClippyState {
+// errors were found – and if so, how many
+pub enum ClippyResult {
     Success,
-    WithWarnings,
-    WithErrors,
-}
-
-// The Result of this clippy run, including State and count of warnings and errors found
-pub struct ClippyResult {
-    pub ended: ClippyState,
-    pub warnings: u8,
-    pub errors: u8,
+    WithWarnings(u32),
+    WithErrors(u32, u32),
 }
 
 // ## Run
@@ -119,27 +112,9 @@ pub fn run<F>(path: &Path, logger: F) -> Result<ClippyResult, String>
             // and wrap that into the appropriate `ClippyResult`
             if output.status.success() {
                 match (errors, warnings) {
-                    (0, 0) => {
-                        Ok(ClippyResult {
-                            ended: ClippyState::Success,
-                            warnings: 0,
-                            errors: 0,
-                        })
-                    }
-                    (0, x) => {
-                        Ok(ClippyResult {
-                            ended: ClippyState::WithWarnings,
-                            warnings: x,
-                            errors: 0,
-                        })
-                    }
-                    _ => {
-                        Ok(ClippyResult {
-                            ended: ClippyState::WithErrors,
-                            warnings: warnings,
-                            errors: errors,
-                        })
-                    }
+                    (0, 0) => Ok(ClippyResult::Success),
+                    (0, x) => Ok(ClippyResult::WithWarnings(x)),
+                    _ => Ok(ClippyResult::WithErrors(errors, warnings))
                 }
             // Or report an Error if clippy (or firejail) failed to execute
             } else {

@@ -12,7 +12,7 @@ use std::slice::SliceConcatExt;
 use redis::{Commands, PipelineCommands};
 
 use helpers::{setup_redis, log_redis, download_and_unzip};
-use clippy::{ClippyState, ClippyResult, run as run_clippy};
+use clippy::{ClippyResult, run as run_clippy};
 
 // ## Update For Github
 // Given the user, repo and SHA, this function fetches the
@@ -138,10 +138,10 @@ pub fn schedule_update(user: &str, repo: &str, sha: &str) {
         // status output, otherwise, report the error and set the status to "failed".
         let text: String = match update_for_github(&user, &repo, &sha, logger) {
             Ok(result) => {
-                match result.ended {
-                    ClippyState::Success => String::from("success"),
-                    ClippyState::WithWarnings => format!("{0} warnings", result.warnings),
-                    ClippyState::WithErrors => format!("{0} errors", result.errors)
+                match result {
+                    ClippyResult::Success => String::from("success"),
+                    ClippyResult::WithWarnings(warnings) => format!("{0} warnings", warnings),
+                    ClippyResult::WithErrors(errors, _) => format!("{0} errors", errors)
                 }
             }
             Err(error) => {
