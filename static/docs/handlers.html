@@ -378,8 +378,7 @@ or trigger a <code>schedule_github_update</code> if that isn’t found yet</p>
 
             </div>
             
-            <div class="content"><div class='highlight'><pre>        <span class="hljs-string">"status"</span> =&gt; <span class="hljs-literal">Ok</span>(Response::with((status::<span class="hljs-literal">Ok</span>,
-                       <span class="hljs-built_in">String</span>::from_utf8(status).unwrap().to_owned()))),</pre></div></div>
+            <div class="content"><div class='highlight'><pre>        <span class="hljs-string">"status"</span> =&gt; <span class="hljs-literal">Ok</span>(Response::with((status::<span class="hljs-literal">Ok</span>, text.to_owned()))),</pre></div></div>
             
         </li>
         
@@ -538,7 +537,7 @@ process. Let the request know.</p>
                 <a class="pilcrow" href="#section-21">&#182;</a>
               </div>
               <p>Nothing else is supported – but in rust, we have to return all things
-of the same type. So let’s return a <code>BadRequst</code> :) . </p>
+of the same type. So let’s return a <code>BadRequst</code> :) .</p>
 
             </div>
             
