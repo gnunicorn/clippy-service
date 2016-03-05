@@ -11,6 +11,7 @@ use std::vec::Vec;
 use rustc_serialize::json::Json;
 
 use iron::modifiers::Redirect;
+use iron::headers::{CacheControl, CacheDirective};
 use iron::prelude::*;
 use iron::status;
 use iron::Url as iUrl;
@@ -134,9 +135,9 @@ pub fn github_handler(req: &mut Request) -> IronResult<Response> {
         || schedule_github_update(&user, &repo, &sha));
 
     // Then render the response
-    match method {
+    let mut response = match method {
         // If this is a simple request for status, just return the result
-        "status" => Ok(Response::with((status::Ok, text.to_owned()))),
+        "status" => Response::with((status::Ok, text.to_owned())),
         // for the badge, put text, color, base URL and query-parameters from the
         // incoming requests together to the URL we need to forward it to
         "badge" => {
@@ -146,11 +147,10 @@ pub fn github_handler(req: &mut Request) -> IronResult<Response> {
             };
             // while linting, use only temporary redirects, so that the actual
             // result will be asked for later
-            Ok(Response::with((match text.as_str() {
+            Response::with((match text.as_str() {
                     "linting" => status::TemporaryRedirect,
                     _ => status::PermanentRedirect
-                },
-                    Redirect(iUrl::parse(&target_badge).unwrap()))))
+                }, Redirect(iUrl::parse(&target_badge).unwrap())))
         },
         // emojibadge and fullemojibadge do the same as the request for `badge`,
         // except that they replace the status with appropriate emoji
@@ -166,11 +166,10 @@ pub fn github_handler(req: &mut Request) -> IronResult<Response> {
                 Some(query) => format!("{}clippy-{}-{}.{}?{}", BADGE_URL_BASE, emoji, color, ext, query),
                 _ => format!("{}clippy-{}-{}.{}", BADGE_URL_BASE, emoji, color, ext),
             };
-            Ok(Response::with((match color.as_str() {
+            Response::with((match color.as_str() {
                     "blue" => status::TemporaryRedirect,
                     _ => status::PermanentRedirect
-                },
-                    Redirect(iUrl::parse(&target_badge).unwrap()))))
+                }, Redirect(iUrl::parse(&target_badge).unwrap())))
         },
         "fullemojibadge" => {
             let emoji = match text.as_str() {
@@ -184,11 +183,10 @@ pub fn github_handler(req: &mut Request) -> IronResult<Response> {
                 Some(query) => format!("{}📎-{}-{}.{}?{}", BADGE_URL_BASE, emoji, color, ext, query),
                 _ => format!("{}📎-{}-{}.{}", BADGE_URL_BASE, emoji, color, ext),
             };
-            Ok(Response::with((match color.as_str() {
+            Response::with((match color.as_str() {
                     "blue" => status::TemporaryRedirect,
                     _ => status::PermanentRedirect
-                },
-                    Redirect(iUrl::parse(&target_badge).unwrap()))))
+                }, Redirect(iUrl::parse(&target_badge).unwrap())))
         },
         // If the request is asking for the logs, fetch those. This isn't particularly
         // simple as the Redis library makes the unwrapping a little bit tricky and hard
@@ -210,17 +208,20 @@ pub fn github_handler(req: &mut Request) -> IronResult<Response> {
                                                     }
                                                 })
                                                 .collect();
-                    Ok(Response::with((status::Ok, logs.join("\n"))))
+                    Response::with((status::Ok, logs.join("\n")))
                 }
                 // if there aren't any logs found, we might just started the
                 // process. Let the request know.
                 _ => {
-                    Ok(Response::with((status::Ok, "Started. Please refresh")))
+                    Response::with((status::Ok, "Started. Please refresh"))
                 }
             }
         },
         // Nothing else is supported – but in rust, we have to return all things
         // of the same type. So let's return a `BadRequst` :) .
-        _ => Ok(Response::with((status::BadRequest, format!("{} Not Implemented.", method)))),
-    }
+        _ => Response::with((status::BadRequest, format!("{} Not Implemented.", method))),
+    };
+
+    response.headers.set(CacheControl(vec![CacheDirective::NoCache]));
+    Ok(response)
 }

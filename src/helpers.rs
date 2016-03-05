@@ -26,7 +26,7 @@ use zip::ZipArchive;
 use std::slice::SliceConcatExt;
 use redis::{Commands, RedisResult, PipelineCommands, Value};
 
-use iron::headers::Location;
+use iron::headers::{Location, CacheControl, CacheDirective};
 use iron::prelude::*;
 use iron::status;
 use iron::Url as iUrl;
@@ -223,9 +223,11 @@ pub fn get_status_or<F>(result: RedisResult<Option<Value>>, trigger: F) -> (Stri
 // This handy function builds a IronResult with the Location-header redirecting
 // us to an abitraty string. This is needed because iron requires us to pass
 // a URL object otherwise, which we can't use for relative redirects, which is
-// necessary to redirect the branch to the proper SHA-key
+// necessary to redirect the branch to the proper SHA-key. Also set a cache
+// control header to do this redirect for 300seconds only
 pub fn local_redir(url: &str, source_url: &iUrl) -> IronResult<Response> {
     let mut resp = Response::with(status::TemporaryRedirect);
+    resp.headers.set(CacheControl(vec![CacheDirective::MaxAge(300)]));
     // As a special feature, this redirect also copies any query-parameters
     // coming in to the parameter redirected to.
     match source_url.query {
