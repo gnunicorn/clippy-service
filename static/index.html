@@ -62,6 +62,15 @@ function set_label(id, value){
   document.getElementById(id).innerHTML = value;
 }
 
+function toggleRender(username, repo, br, render, style, bg) {
+  var styles = ["AsciiDoc", "ReStructured Text", "RawLink", "Markdown"];
+  var render = document.forms[0].elements.render;
+  var next = styles[styles.indexOf(render.value) + 1 >= styles.length ? 0 : styles.indexOf(render.value) + 1];
+  render.value = next;
+  // trigger refresh
+  document.forms[0].oninput();
+}
+
 function update_output(username, repo, br, render, style, bg){
   var base = document.location.protocol + "//" + document.location.host;
   var result = document.getElementById("result");
@@ -99,7 +108,7 @@ function update_output(username, repo, br, render, style, bg){
       break;
   }
 
-   result.innerHTML = "<p>Just add this to your readme:<br/><textarea readonly>" + content + "</textarea></p>";
+   result.innerHTML = "<textarea readonly>" + content + "</textarea>";
 }
 
 function toggleAdvanced(ev) {
@@ -113,15 +122,15 @@ function toggleAdvanced(ev) {
     <h1><img class="logo" alt="📎" title="📎" src="logo.svg"/></h1>
     <p><a href="https://github.com/Manishearth/rust-clippy" target="_blank">Clippy</a> Linting Service for your <a href="http://www.rust-lang.org" target="_blank">Rust</a> Project</p>
 
-  <div class="boxed">
-    <form oninput="update_output(username.value, repo.value, branch.value, render.value, style.value, badge.value);">
+  <form oninput="update_output(username.value, repo.value, branch.value, render.value, style.value, badge.value);">
+    <div class="boxed">
 
       <p>
         github.com / <input name="username" type="text" placeholder="username" /> / <input name="repo" type="text" placeholder="repo" /> : <input type="text" name="branch" placeholder="master" />
       </p>
 
       <div class="options">
-          Rendering <span id="render"></span> <span id="style">flat style</span> <span id="method">badge</span> : <img id="badge" title="Example" src="/github/ligthyear/clippy-service/badge.svg" /> <a onClick="toggleAdvanced(this)">edit</a>
+          Rendering <span id="style">flat style</span> <span id="method">badge</span> : <a onClick="toggleAdvanced(this)"><img id="badge" title="Example" src="/github/ligthyear/clippy-service/badge.svg" /> ⚙</a>
         <div id="advanced">
 
           <p>
@@ -179,9 +188,13 @@ function toggleAdvanced(ev) {
 
       <hr />
 
-      <output id="result" name="result"></output>
+      Just add this <a onClick="toggleRender()"><span id="render"></span>⚙</a> to your Readme:
+      <p>
+        <output id="result" name="result"></output>
+      </p>
 
     </div>
+  </form>
 
     <div class="boxed">
       <h3>Like what you see?</h3>
@@ -220,6 +233,5 @@ function toggleAdvanced(ev) {
       </p>
     </footer>
 
-  </form>
 </body>
 </html>
