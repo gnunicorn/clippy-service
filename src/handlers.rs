@@ -149,7 +149,7 @@ pub fn github_handler(req: &mut Request) -> IronResult<Response> {
             // result will be asked for later
             Response::with((match text.as_str() {
                     "linting" => status::Found,
-                    _ => status::PermanentRedirect
+                    _ => status::MovedPermanently
                 }, Redirect(iUrl::parse(&target_badge).unwrap())))
         },
         // emojibadge and fullemojibadge do the same as the request for `badge`,
@@ -168,7 +168,7 @@ pub fn github_handler(req: &mut Request) -> IronResult<Response> {
             };
             Response::with((match color.as_str() {
                     "blue" => status::Found,
-                    _ => status::PermanentRedirect
+                    _ => status::MovedPermanently
                 }, Redirect(iUrl::parse(&target_badge).unwrap())))
         },
         "fullemojibadge" => {
@@ -185,7 +185,7 @@ pub fn github_handler(req: &mut Request) -> IronResult<Response> {
             };
             Response::with((match color.as_str() {
                     "blue" => status::Found,
-                    _ => status::PermanentRedirect
+                    _ => status::MovedPermanently
                 }, Redirect(iUrl::parse(&target_badge).unwrap())))
         },
         // If the request is asking for the logs, fetch those. This isn't particularly
