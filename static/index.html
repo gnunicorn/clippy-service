@@ -109,7 +109,7 @@ function toggleAdvanced(ev) {
 }
 
 </script>
-<body onload="update_output()">
+<body onload="setTimeout(document.forms[0].oninput, 1);">
     <h1><img class="logo" alt="📎" title="📎" src="logo.svg"/></h1>
     <p><a href="https://github.com/Manishearth/rust-clippy" target="_blank">Clippy</a> Linting Service for your <a href="http://www.rust-lang.org" target="_blank">Rust</a> Project</p>
 
