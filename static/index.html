@@ -51,6 +51,9 @@ footer img {
 a, a:hover a:visited {
   color: #2149D4;
 }
+a.action {
+  cursor: pointer;
+}
 
 #advanced {
   display: none;
@@ -130,7 +133,7 @@ function toggleAdvanced(ev) {
       </p>
 
       <div class="options">
-          Rendering <span id="style">flat style</span> <span id="method">badge</span> : <a onClick="toggleAdvanced(this)"><img id="badge" title="Example" src="/github/ligthyear/clippy-service/badge.svg" /> ⚙</a>
+          Rendering <span id="style">flat style</span> <span id="method">badge</span> : <a class="action" onClick="toggleAdvanced(this)"><img id="badge" title="Example" src="/github/ligthyear/clippy-service/badge.svg" /> ⚙</a>
         <div id="advanced">
 
           <p>
@@ -188,7 +191,7 @@ function toggleAdvanced(ev) {
 
       <hr />
 
-      Just add this <a onClick="toggleRender()"><span id="render"></span>⚙</a> to your Readme:
+      Just add this <a onClick="toggleRender()"  class="action"><span id="render"></span>⚙</a> to your Readme:
       <p>
         <output id="result" name="result"></output>
       </p>
