@@ -226,7 +226,7 @@ pub fn get_status_or<F>(result: RedisResult<Option<Value>>, trigger: F) -> (Stri
 // necessary to redirect the branch to the proper SHA-key. Also set a cache
 // control header to do this redirect for 300seconds only
 pub fn local_redir(url: &str, source_url: &iUrl) -> IronResult<Response> {
-    let mut resp = Response::with(status::TemporaryRedirect);
+    let mut resp = Response::with(status::Found);
     resp.headers.set(CacheControl(vec![CacheDirective::MaxAge(300)]));
     // As a special feature, this redirect also copies any query-parameters
     // coming in to the parameter redirected to.

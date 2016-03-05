@@ -148,7 +148,7 @@ pub fn github_handler(req: &mut Request) -> IronResult<Response> {
             // while linting, use only temporary redirects, so that the actual
             // result will be asked for later
             Response::with((match text.as_str() {
-                    "linting" => status::TemporaryRedirect,
+                    "linting" => status::Found,
                     _ => status::PermanentRedirect
                 }, Redirect(iUrl::parse(&target_badge).unwrap())))
         },
@@ -167,7 +167,7 @@ pub fn github_handler(req: &mut Request) -> IronResult<Response> {
                 _ => format!("{}clippy-{}-{}.{}", BADGE_URL_BASE, emoji, color, ext),
             };
             Response::with((match color.as_str() {
-                    "blue" => status::TemporaryRedirect,
+                    "blue" => status::Found,
                     _ => status::PermanentRedirect
                 }, Redirect(iUrl::parse(&target_badge).unwrap())))
         },
@@ -184,7 +184,7 @@ pub fn github_handler(req: &mut Request) -> IronResult<Response> {
                 _ => format!("{}📎-{}-{}.{}", BADGE_URL_BASE, emoji, color, ext),
             };
             Response::with((match color.as_str() {
-                    "blue" => status::TemporaryRedirect,
+                    "blue" => status::Found,
                     _ => status::PermanentRedirect
                 }, Redirect(iUrl::parse(&target_badge).unwrap())))
         },
