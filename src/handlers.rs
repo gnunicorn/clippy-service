@@ -20,7 +20,6 @@ use hyper::client::Client;
 
 use router::Router;
 
-use std::slice::SliceConcatExt;
 use redis::{Commands, Value};
 
 use helpers::{setup_redis, fetch, get_status_or,  local_redir, set_redis_cache};

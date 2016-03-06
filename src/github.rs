@@ -8,7 +8,6 @@ use std::thread;
 use tempdir::TempDir;
 use time::now_utc;
 
-use std::slice::SliceConcatExt;
 use redis::{Commands, PipelineCommands};
 
 use helpers::{setup_redis, log_redis, download_and_unzip};
