@@ -50,6 +50,8 @@ pub fn run<F>(path: &Path, logger: F) -> Result<ClippyResult, String>
     // plugin for clippy which can be found at the library path passed after
     // `-L`. Secondly we need rustc to report errors in the `json`-format (new
     // nightly feature), so we can parse it later.
+                      "timeout", "-k", "10m", "11m",
+                      "cpulimit", "-l75", "--",
                       "cargo",
                       "rustc",
                       "--",

@@ -26,7 +26,7 @@ MESSAGE
 INSTALL = <<-INSTALL
 sudo apt-get update
 sudo apt-get upgrade -y
-sudo apt-get install -y build-essential g++ pgp python perl make curl git libssl-dev redis-server
+sudo apt-get install -y build-essential g++ pgp python perl make curl git libssl-dev redis-server cpulimit
 
 INSTALL
 
