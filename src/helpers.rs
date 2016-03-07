@@ -23,7 +23,6 @@ use tempdir::TempDir;
 use time::now_utc;
 use zip::ZipArchive;
 
-use std::slice::SliceConcatExt;
 use redis::{Commands, RedisResult, PipelineCommands, Value};
 
 use iron::headers::{Location, CacheControl, CacheDirective};

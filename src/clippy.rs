@@ -3,7 +3,6 @@
 extern crate rustc_serialize;
 
 use rustc_serialize::json::Json;
-use std::slice::SliceConcatExt;
 
 use std::process::Command;
 use std::path::Path;

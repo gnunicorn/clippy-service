@@ -1,10 +1,5 @@
 // **Run as an application, this is where execution starts.**
 
-// Features and macros need to be defined in the main entry point
-// of a project. In this case, we need a few macros as well as
-// the new slice-concat feature, a join on a vector (list) of strings.
-#![feature(slice_concat_ext)]
-
 // Further more we define our app dependencies on external crates.
 // First everything that is directly related to the iron framework
 // are using to build our web project on
