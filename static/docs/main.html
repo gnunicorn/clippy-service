@@ -78,23 +78,6 @@
               <div class="pilwrap ">
                 <a class="pilcrow" href="#section-2">&#182;</a>
               </div>
-              <p>Features and macros need to be defined in the main entry point
-of a project. In this case, we need a few macros as well as
-the new slice-concat feature, a join on a vector (list) of strings.</p>
-
-            </div>
-            
-            <div class="content"><div class='highlight'><pre><span class="hljs-meta">#![feature(slice_concat_ext)]</span></pre></div></div>
-            
-        </li>
-        
-        
-        <li id="section-3">
-            <div class="annotation">
-              
-              <div class="pilwrap ">
-                <a class="pilcrow" href="#section-3">&#182;</a>
-              </div>
               <p>Further more we define our app dependencies on external crates.
 First everything that is directly related to the iron framework
 are using to build our web project on</p>
@@ -108,11 +91,11 @@ are using to build our web project on</p>
         </li>
         
         
-        <li id="section-4">
+        <li id="section-3">
             <div class="annotation">
               
               <div class="pilwrap ">
-                <a class="pilcrow" href="#section-4">&#182;</a>
+                <a class="pilcrow" href="#section-3">&#182;</a>
               </div>
               <p>we will use the (iron) router macro</p>
 
@@ -124,11 +107,11 @@ are using to build our web project on</p>
         </li>
         
         
-        <li id="section-5">
+        <li id="section-4">
             <div class="annotation">
               
               <div class="pilwrap ">
-                <a class="pilcrow" href="#section-5">&#182;</a>
+                <a class="pilcrow" href="#section-4">&#182;</a>
               </div>
               <p>Secondly all high level libraries, like serializers, hyper and redis</p>
 
@@ -141,11 +124,11 @@ are using to build our web project on</p>
         </li>
         
         
-        <li id="section-6">
+        <li id="section-5">
             <div class="annotation">
               
               <div class="pilwrap ">
-                <a class="pilcrow" href="#section-6">&#182;</a>
+                <a class="pilcrow" href="#section-5">&#182;</a>
               </div>
               <p>And last all the very common utils, like loggers, tempdir, time
 We want to use the log macros globally</p>
@@ -159,11 +142,11 @@ We want to use the log macros globally</p>
         </li>
         
         
-        <li id="section-7">
+        <li id="section-6">
             <div class="annotation">
               
               <div class="pilwrap ">
-                <a class="pilcrow" href="#section-7">&#182;</a>
+                <a class="pilcrow" href="#section-6">&#182;</a>
               </div>
               <p>the macro to define Mime types</p>
 
@@ -180,11 +163,11 @@ We want to use the log macros globally</p>
         </li>
         
         
-        <li id="section-8">
+        <li id="section-7">
             <div class="annotation">
               
               <div class="pilwrap ">
-                <a class="pilcrow" href="#section-8">&#182;</a>
+                <a class="pilcrow" href="#section-7">&#182;</a>
               </div>
               <p>Next, we need to <em>register</em> the other modules of this crate here, using the <code>mod</code> keyword:
 We want it to use the handlers, helpers, github and clippy modules (all in their
@@ -201,11 +184,11 @@ respective files)</p>
         </li>
         
         
-        <li id="section-9">
+        <li id="section-8">
             <div class="annotation">
               
               <div class="pilwrap ">
-                <a class="pilcrow" href="#section-9">&#182;</a>
+                <a class="pilcrow" href="#section-8">&#182;</a>
               </div>
               <p>Then we  <em>import</em> the things specifically needed for this particular module
 again starting with iron, its specifics and lastly common libs</p>
@@ -221,11 +204,11 @@ again starting with iron, its specifics and lastly common libs</p>
         </li>
         
         
-        <li id="section-10">
+        <li id="section-9">
             <div class="annotation">
               
               <div class="pilwrap ">
-                <a class="pilcrow" href="#section-10">&#182;</a>
+                <a class="pilcrow" href="#section-9">&#182;</a>
               </div>
               <p><strong>The <code>main</code> function</strong> in <code>src/main.rs</code> is the entry point for our command when it will
 be executed. In our case, this is where we setup the logger, routing and start the
@@ -238,11 +221,11 @@ iron server.</p>
         </li>
         
         
-        <li id="section-11">
+        <li id="section-10">
             <div class="annotation">
               
               <div class="pilwrap ">
-                <a class="pilcrow" href="#section-11">&#182;</a>
+                <a class="pilcrow" href="#section-10">&#182;</a>
               </div>
               <p>setup logger using <a href="http://doc.rust-lang.org/log/env_logger/index.html">env_logger</a> crate.
 Thus, you can specify the log output with the handy <code>RUST_LOG</code> environment variable</p>
@@ -254,11 +237,11 @@ Thus, you can specify the log output with the handy <code>RUST_LOG</code> enviro
         </li>
         
         
-        <li id="section-12">
+        <li id="section-11">
             <div class="annotation">
               
               <div class="pilwrap ">
-                <a class="pilcrow" href="#section-12">&#182;</a>
+                <a class="pilcrow" href="#section-11">&#182;</a>
               </div>
               <p>In order to react to incoming requests, we set up a multiple mount points, based
 on the first part of the url.</p>
@@ -270,11 +253,11 @@ on the first part of the url.</p>
         </li>
         
         
-        <li id="section-13">
+        <li id="section-12">
             <div class="annotation">
               
               <div class="pilwrap ">
-                <a class="pilcrow" href="#section-13">&#182;</a>
+                <a class="pilcrow" href="#section-12">&#182;</a>
               </div>
               <p>Everything starting with <code>/github/</code> should be routed to our github handlers
 in <code>handler.rs</code>.
@@ -294,11 +277,11 @@ table:</p>
         </li>
         
         
-        <li id="section-14">
+        <li id="section-13">
             <div class="annotation">
               
               <div class="pilwrap ">
-                <a class="pilcrow" href="#section-14">&#182;</a>
+                <a class="pilcrow" href="#section-13">&#182;</a>
               </div>
               <p>Secondly we have some static files in the static/ folder we’d like to have served.
 <em>Note</em>: We have to define them seperately as Static <em>does not</em> serve recursively
@@ -313,11 +296,11 @@ at the time of writing.</p>
         </li>
         
         
-        <li id="section-15">
+        <li id="section-14">
             <div class="annotation">
               
               <div class="pilwrap ">
-                <a class="pilcrow" href="#section-15">&#182;</a>
+                <a class="pilcrow" href="#section-14">&#182;</a>
               </div>
               <p>Send a message to the console, letting the user know we are (going to be) up</p>
 
@@ -328,11 +311,11 @@ at the time of writing.</p>
         </li>
         
         
-        <li id="section-16">
+        <li id="section-15">
             <div class="annotation">
               
               <div class="pilwrap ">
-                <a class="pilcrow" href="#section-16">&#182;</a>
+                <a class="pilcrow" href="#section-15">&#182;</a>
               </div>
               <p>And start serving those routes
 On port <code>8080</code> of all interfaces</p>

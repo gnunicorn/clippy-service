@@ -73,7 +73,6 @@
 <span class="hljs-keyword">extern</span> <span class="hljs-keyword">crate</span> rustc_serialize;
 
 <span class="hljs-keyword">use</span> rustc_serialize::json::Json;
-<span class="hljs-keyword">use</span> std::slice::<span class="hljs-built_in">SliceConcatExt</span>;
 
 <span class="hljs-keyword">use</span> std::process::Command;
 <span class="hljs-keyword">use</span> std::path::Path;
@@ -91,14 +90,14 @@
               </div>
               <p>Enum describing the State of the Clippy result,
 whether everything went fine or if warnings or
-errors were found.</p>
+errors were found – and if so, how many</p>
 
             </div>
             
-            <div class="content"><div class='highlight'><pre><span class="hljs-keyword">pub</span> <span class="hljs-class"><span class="hljs-keyword">enum</span> <span class="hljs-title">ClippyState</span></span> {
+            <div class="content"><div class='highlight'><pre><span class="hljs-keyword">pub</span> <span class="hljs-class"><span class="hljs-keyword">enum</span> <span class="hljs-title">ClippyResult</span></span> {
     Success,
-    WithWarnings,
-    WithErrors,
+    WithWarnings(<span class="hljs-keyword">u32</span>),
+    WithErrors(<span class="hljs-keyword">u32</span>, <span class="hljs-keyword">u32</span>),
 }</pre></div></div>
             
         </li>
@@ -109,25 +108,6 @@ errors were found.</p>
               
               <div class="pilwrap ">
                 <a class="pilcrow" href="#section-3">&#182;</a>
-              </div>
-              <p>The Result of this clippy run, including State and count of warnings and errors found</p>
-
-            </div>
-            
-            <div class="content"><div class='highlight'><pre><span class="hljs-keyword">pub</span> <span class="hljs-class"><span class="hljs-keyword">struct</span> <span class="hljs-title">ClippyResult</span></span> {
-    <span class="hljs-keyword">pub</span> ended: ClippyState,
-    <span class="hljs-keyword">pub</span> warnings: <span class="hljs-keyword">u8</span>,
-    <span class="hljs-keyword">pub</span> errors: <span class="hljs-keyword">u8</span>,
-}</pre></div></div>
-            
-        </li>
-        
-        
-        <li id="section-4">
-            <div class="annotation">
-              
-              <div class="pilwrap ">
-                <a class="pilcrow" href="#section-4">&#182;</a>
               </div>
               <h2 id="run">Run</h2>
 <p>Run clippy in the specified Path. We expect there to be a Cargo.toml file, checking for
@@ -143,11 +123,11 @@ the current process via the <code>logger</code> function.</p>
         </li>
         
         
-        <li id="section-5">
+        <li id="section-4">
             <div class="annotation">
               
               <div class="pilwrap ">
-                <a class="pilcrow" href="#section-5">&#182;</a>
+                <a class="pilcrow" href="#section-4">&#182;</a>
               </div>
               <p>Find the <em>local</em> clippy we are shipping with the clippy-service
 and append that to the cargo rustc process</p>
@@ -162,11 +142,11 @@ and append that to the cargo rustc process</p>
         </li>
         
         
-        <li id="section-6">
+        <li id="section-5">
             <div class="annotation">
               
               <div class="pilwrap ">
-                <a class="pilcrow" href="#section-6">&#182;</a>
+                <a class="pilcrow" href="#section-5">&#182;</a>
               </div>
               <p>Start the the <code>firejail</code> process, using the preinstalled <code>cargo</code>-profile
 use the <code>--force</code> flag to make it run even though we are in a docker
@@ -181,7 +161,26 @@ our clippy lib is stored.</p>
               .args(&amp;[<span class="hljs-string">"--profile=/etc/firejail/cargo.profile"</span>,
                       <span class="hljs-string">"--force"</span>,
                       <span class="hljs-built_in">format!</span>(<span class="hljs-string">"--whitelist={}"</span>,
+                      &amp;path.to_string_lossy().into_owned()).as_str(),
+                      <span class="hljs-built_in">format!</span>(<span class="hljs-string">"--name={}"</span>,
                       &amp;path.to_string_lossy().into_owned()).as_str(),</pre></div></div>
+            
+        </li>
+        
+        
+        <li id="section-6">
+            <div class="annotation">
+              
+              <div class="pilwrap ">
+                <a class="pilcrow" href="#section-6">&#182;</a>
+              </div>
+              <p>Limit the resources each process is allowed to use to 75% of one CPU,
+for a maximum of 10 minutes</p>
+
+            </div>
+            
+            <div class="content"><div class='highlight'><pre>                      <span class="hljs-string">"timeout"</span>, <span class="hljs-string">"-k"</span>, <span class="hljs-string">"10m"</span>, <span class="hljs-string">"11m"</span>,
+                      <span class="hljs-string">"cpulimit"</span>, <span class="hljs-string">"-l75"</span>, <span class="hljs-string">"--"</span>,</pre></div></div>
             
         </li>
         
@@ -338,27 +337,9 @@ and wrap that into the appropriate <code>ClippyResult</code></p>
             
             <div class="content"><div class='highlight'><pre>            <span class="hljs-keyword">if</span> output.status.success() {
                 <span class="hljs-keyword">match</span> (errors, warnings) {
-                    (<span class="hljs-number">0</span>, <span class="hljs-number">0</span>) =&gt; {
-                        <span class="hljs-literal">Ok</span>(ClippyResult {
-                            ended: ClippyState::Success,
-                            warnings: <span class="hljs-number">0</span>,
-                            errors: <span class="hljs-number">0</span>,
-                        })
-                    }
-                    (<span class="hljs-number">0</span>, x) =&gt; {
-                        <span class="hljs-literal">Ok</span>(ClippyResult {
-                            ended: ClippyState::WithWarnings,
-                            warnings: x,
-                            errors: <span class="hljs-number">0</span>,
-                        })
-                    }
-                    _ =&gt; {
-                        <span class="hljs-literal">Ok</span>(ClippyResult {
-                            ended: ClippyState::WithErrors,
-                            warnings: warnings,
-                            errors: errors,
-                        })
-                    }
+                    (<span class="hljs-number">0</span>, <span class="hljs-number">0</span>) =&gt; <span class="hljs-literal">Ok</span>(ClippyResult::Success),
+                    (<span class="hljs-number">0</span>, x) =&gt; <span class="hljs-literal">Ok</span>(ClippyResult::WithWarnings(x)),
+                    _ =&gt; <span class="hljs-literal">Ok</span>(ClippyResult::WithErrors(errors, warnings))
                 }</pre></div></div>
             
         </li>

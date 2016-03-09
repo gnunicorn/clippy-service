@@ -72,17 +72,16 @@
             <div class="content"><div class='highlight'><pre><span class="hljs-keyword">extern</span> <span class="hljs-keyword">crate</span> redis;
 <span class="hljs-keyword">extern</span> <span class="hljs-keyword">crate</span> time;
 <span class="hljs-keyword">extern</span> <span class="hljs-keyword">crate</span> tempdir;
+<span class="hljs-keyword">extern</span> <span class="hljs-keyword">crate</span> rand;
 
 <span class="hljs-keyword">use</span> std::path::Path;
 <span class="hljs-keyword">use</span> std::thread;
 <span class="hljs-keyword">use</span> tempdir::TempDir;
-<span class="hljs-keyword">use</span> time::now_utc;
 
-<span class="hljs-keyword">use</span> std::slice::<span class="hljs-built_in">SliceConcatExt</span>;
 <span class="hljs-keyword">use</span> redis::{Commands, PipelineCommands};
 
 <span class="hljs-keyword">use</span> helpers::{setup_redis, log_redis, download_and_unzip};
-<span class="hljs-keyword">use</span> clippy::{ClippyState, ClippyResult, run <span class="hljs-keyword">as</span> run_clippy};</pre></div></div>
+<span class="hljs-keyword">use</span> clippy::{ClippyResult, run <span class="hljs-keyword">as</span> run_clippy};</pre></div></div>
             
         </li>
         
@@ -284,6 +283,7 @@ variables here to ensure they can’t change during thread runtime.</p>
     <span class="hljs-keyword">let</span> base_key = <span class="hljs-built_in">format!</span>(<span class="hljs-string">"github/{0}/{1}:{2}"</span>, user, repo, sha).to_owned();
 
     <span class="hljs-keyword">let</span> result_key = <span class="hljs-built_in">format!</span>(<span class="hljs-string">"result/{}"</span>, base_key).to_owned();
+    <span class="hljs-keyword">let</span> lock_key = <span class="hljs-built_in">format!</span>(<span class="hljs-string">"lock/{}"</span>, base_key).to_owned();
     <span class="hljs-keyword">let</span> log_key = <span class="hljs-built_in">format!</span>(<span class="hljs-string">"log/{}"</span>, base_key).to_owned();</pre></div></div>
             
         </li>
@@ -313,38 +313,19 @@ and the logger clojure in here to avoid ownership problems.</p>
               <div class="pilwrap ">
                 <a class="pilcrow" href="#section-13">&#182;</a>
               </div>
-              <p>But before starting exection, make sure the redis connection is up
-and the logs aren’t yet written by anyone. We do that inside a redis
-transaction, ensuring we are atomic and would.
-For that we pass into the transaction the keys we want to be informed
-about if changes happen to them while we execute. In that case our
-transaction was cancelled before it got executed and we knew that another
-background thread was already working on it.</p>
+              <p>Processes could be scheduled at the same time. We use redis to keep
+a shared lock to ensure we aren’t running the same process and write
+to the same log more than once.
+See <a href="http://redis.io/topics/distlock#correct-implementation-with-a-single-instance">http://redis.io/topics/distlock#correct-implementation-with-a-single-instance</a>
+to learn more about using redis with distributed locks.</p>
 
             </div>
             
-            <div class="content"><div class='highlight'><pre>        <span class="hljs-keyword">if</span> <span class="hljs-keyword">let</span> <span class="hljs-literal">Ok</span>(existing) = redis::transaction(&amp;redis,
-                                                 &amp;[log_key.clone(), result_key.clone()],
-                                                 |pipe| {
-                                                     <span class="hljs-keyword">match</span> redis.exists(result_key.clone()) {
-                                                         <span class="hljs-literal">Ok</span>(<span class="hljs-literal">Some</span>(<span class="hljs-literal">false</span>)) =&gt; {
-                                                             pipe.cmd(<span class="hljs-string">"RPUSH"</span>)
-                                                                 .arg(log_key.clone())
-                                                                 .arg(<span class="hljs-built_in">format!</span>(<span class="hljs-string">"{0} started \
-                                                                               processing \
-                                                                               github/{1}/{2}:\
-                                                                               {3}"</span>,
-                                                                              now_utc().rfc3339(),
-                                                                              user,
-                                                                              repo,
-                                                                              sha))
-                                                                 .ignore()
-                                                                 .execute(&amp;redis);
-                                                             <span class="hljs-literal">Ok</span>(<span class="hljs-literal">Some</span>(<span class="hljs-literal">false</span>))
-                                                         }
-                                                         _ =&gt; <span class="hljs-literal">Ok</span>(<span class="hljs-literal">Some</span>(<span class="hljs-literal">true</span>)),
-                                                     }
-                                                 }) {</pre></div></div>
+            <div class="content"><div class='highlight'><pre>
+        <span class="hljs-keyword">let</span> random_lock_value : <span class="hljs-keyword">u32</span> = rand::random::&lt;<span class="hljs-keyword">u32</span>&gt;();
+        <span class="hljs-keyword">let</span> _ : <span class="hljs-keyword">bool</span> = redis.set_nx(lock_key.clone(), random_lock_value).unwrap();
+        <span class="hljs-keyword">let</span> lock_val : <span class="hljs-keyword">u32</span> = redis.get(lock_key.clone()).unwrap();
+        <span class="hljs-keyword">if</span>  lock_val != random_lock_value {</pre></div></div>
             
         </li>
         
@@ -355,14 +336,12 @@ background thread was already working on it.</p>
               <div class="pilwrap ">
                 <a class="pilcrow" href="#section-14">&#182;</a>
               </div>
-              <p>we have been alerted, the key already existed
-so someone else is writing a log file. We should stop now.</p>
+              <p>we aren’t the ones, who acquired the lock, means someone
+else is running this process. We should quit immediately.</p>
 
             </div>
             
-            <div class="content"><div class='highlight'><pre>            <span class="hljs-keyword">if</span> existing {
-                <span class="hljs-keyword">return</span>;
-            }
+            <div class="content"><div class='highlight'><pre>            <span class="hljs-keyword">return</span>
         }</pre></div></div>
             
         </li>
@@ -374,18 +353,36 @@ so someone else is writing a log file. We should stop now.</p>
               <div class="pilwrap ">
                 <a class="pilcrow" href="#section-15">&#182;</a>
               </div>
+              <p>Make sure we expire the key though – in 15min.</p>
+
+            </div>
+            
+            <div class="content"><div class='highlight'><pre>        <span class="hljs-keyword">let</span> _ : <span class="hljs-keyword">bool</span> = redis.expire(lock_key.clone(), <span class="hljs-number">900</span>).unwrap();</pre></div></div>
+            
+        </li>
+        
+        
+        <li id="section-16">
+            <div class="annotation">
+              
+              <div class="pilwrap ">
+                <a class="pilcrow" href="#section-16">&#182;</a>
+              </div>
               <p>No background thread yet, we are ready to roll: execute <code>update_for_github</code>
 and parse the result. If there is ClippyResult, match it to the appropriate
 status output, otherwise, report the error and set the status to “failed”.</p>
 
             </div>
             
-            <div class="content"><div class='highlight'><pre>        <span class="hljs-keyword">let</span> text: <span class="hljs-built_in">String</span> = <span class="hljs-keyword">match</span> update_for_github(&amp;user, &amp;repo, &amp;sha, logger) {
+            <div class="content"><div class='highlight'><pre>
+        logger(<span class="hljs-string">"Started Processing"</span>);
+
+        <span class="hljs-keyword">let</span> text: <span class="hljs-built_in">String</span> = <span class="hljs-keyword">match</span> update_for_github(&amp;user, &amp;repo, &amp;sha, logger) {
             <span class="hljs-literal">Ok</span>(result) =&gt; {
-                <span class="hljs-keyword">match</span> result.ended {
-                    ClippyState::Success =&gt; <span class="hljs-built_in">String</span>::from(<span class="hljs-string">"success"</span>),
-                    ClippyState::WithWarnings =&gt; <span class="hljs-built_in">format!</span>(<span class="hljs-string">"{0} warnings"</span>, result.warnings),
-                    ClippyState::WithErrors =&gt; <span class="hljs-built_in">format!</span>(<span class="hljs-string">"{0} errors"</span>, result.errors)
+                <span class="hljs-keyword">match</span> result {
+                    ClippyResult::Success =&gt; <span class="hljs-built_in">String</span>::from(<span class="hljs-string">"success"</span>),
+                    ClippyResult::WithWarnings(warnings) =&gt; <span class="hljs-built_in">format!</span>(<span class="hljs-string">"{0} warnings"</span>, warnings),
+                    ClippyResult::WithErrors(errors, _) =&gt; <span class="hljs-built_in">format!</span>(<span class="hljs-string">"{0} errors"</span>, errors)
                 }
             }
             <span class="hljs-literal">Err</span>(error) =&gt; {
@@ -397,11 +394,11 @@ status output, otherwise, report the error and set the status to “failed”.</
         </li>
         
         
-        <li id="section-16">
+        <li id="section-17">
             <div class="annotation">
               
               <div class="pilwrap ">
-                <a class="pilcrow" href="#section-16">&#182;</a>
+                <a class="pilcrow" href="#section-17">&#182;</a>
               </div>
               <p>log the output from clippy and set the result into the redis cache.
 we are done with our background thread. Rust will take care of cleaning

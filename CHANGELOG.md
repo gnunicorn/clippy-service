@@ -1,5 +1,12 @@
 # Clippy Service Changelog
 
+## Mar 9th 2016
+
+ - Use improved Redis locking mechanism
+ - Limit CPU and Execution time of background process
+ - Minor fixes in rendering of copy-paste-code
+ - add Contributors section.
+
 ## Mar 3rd 2016, 1.0-beta3
 
  - add emoji badges

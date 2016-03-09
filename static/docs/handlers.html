@@ -81,6 +81,7 @@
 <span class="hljs-keyword">use</span> rustc_serialize::json::Json;
 
 <span class="hljs-keyword">use</span> iron::modifiers::Redirect;
+<span class="hljs-keyword">use</span> iron::headers::{CacheControl, CacheDirective};
 <span class="hljs-keyword">use</span> iron::prelude::*;
 <span class="hljs-keyword">use</span> iron::status;
 <span class="hljs-keyword">use</span> iron::Url <span class="hljs-keyword">as</span> iUrl;
@@ -89,7 +90,6 @@
 
 <span class="hljs-keyword">use</span> router::Router;
 
-<span class="hljs-keyword">use</span> std::slice::<span class="hljs-built_in">SliceConcatExt</span>;
 <span class="hljs-keyword">use</span> redis::{Commands, Value};
 
 <span class="hljs-keyword">use</span> helpers::{setup_redis, fetch, get_status_or,  local_redir, set_redis_cache};
@@ -363,7 +363,7 @@ or trigger a <code>schedule_github_update</code> if that isn’t found yet</p>
 
             </div>
             
-            <div class="content"><div class='highlight'><pre>    <span class="hljs-keyword">match</span> method {</pre></div></div>
+            <div class="content"><div class='highlight'><pre>    <span class="hljs-keyword">let</span> <span class="hljs-keyword">mut</span> response = <span class="hljs-keyword">match</span> method {</pre></div></div>
             
         </li>
         
@@ -378,7 +378,7 @@ or trigger a <code>schedule_github_update</code> if that isn’t found yet</p>
 
             </div>
             
-            <div class="content"><div class='highlight'><pre>        <span class="hljs-string">"status"</span> =&gt; <span class="hljs-literal">Ok</span>(Response::with((status::<span class="hljs-literal">Ok</span>, text.to_owned()))),</pre></div></div>
+            <div class="content"><div class='highlight'><pre>        <span class="hljs-string">"status"</span> =&gt; Response::with((status::<span class="hljs-literal">Ok</span>, text.to_owned())),</pre></div></div>
             
         </li>
         
@@ -414,11 +414,10 @@ result will be asked for later</p>
 
             </div>
             
-            <div class="content"><div class='highlight'><pre>            <span class="hljs-literal">Ok</span>(Response::with((<span class="hljs-keyword">match</span> text.as_str() {
-                    <span class="hljs-string">"linting"</span> =&gt; status::TemporaryRedirect,
-                    _ =&gt; status::PermanentRedirect
-                },
-                    Redirect(iUrl::parse(&amp;target_badge).unwrap()))))
+            <div class="content"><div class='highlight'><pre>            Response::with((<span class="hljs-keyword">match</span> text.as_str() {
+                    <span class="hljs-string">"linting"</span> =&gt; status::Found,
+                    _ =&gt; status::MovedPermanently
+                }, Redirect(iUrl::parse(&amp;target_badge).unwrap())))
         },</pre></div></div>
             
         </li>
@@ -447,11 +446,10 @@ except that they replace the status with appropriate emoji</p>
                 <span class="hljs-literal">Some</span>(query) =&gt; <span class="hljs-built_in">format!</span>(<span class="hljs-string">"{}clippy-{}-{}.{}?{}"</span>, BADGE_URL_BASE, emoji, color, ext, query),
                 _ =&gt; <span class="hljs-built_in">format!</span>(<span class="hljs-string">"{}clippy-{}-{}.{}"</span>, BADGE_URL_BASE, emoji, color, ext),
             };
-            <span class="hljs-literal">Ok</span>(Response::with((<span class="hljs-keyword">match</span> color.as_str() {
-                    <span class="hljs-string">"blue"</span> =&gt; status::TemporaryRedirect,
-                    _ =&gt; status::PermanentRedirect
-                },
-                    Redirect(iUrl::parse(&amp;target_badge).unwrap()))))
+            Response::with((<span class="hljs-keyword">match</span> color.as_str() {
+                    <span class="hljs-string">"blue"</span> =&gt; status::Found,
+                    _ =&gt; status::MovedPermanently
+                }, Redirect(iUrl::parse(&amp;target_badge).unwrap())))
         },
         <span class="hljs-string">"fullemojibadge"</span> =&gt; {
             <span class="hljs-keyword">let</span> emoji = <span class="hljs-keyword">match</span> text.as_str() {
@@ -465,11 +463,10 @@ except that they replace the status with appropriate emoji</p>
                 <span class="hljs-literal">Some</span>(query) =&gt; <span class="hljs-built_in">format!</span>(<span class="hljs-string">"{}📎-{}-{}.{}?{}"</span>, BADGE_URL_BASE, emoji, color, ext, query),
                 _ =&gt; <span class="hljs-built_in">format!</span>(<span class="hljs-string">"{}📎-{}-{}.{}"</span>, BADGE_URL_BASE, emoji, color, ext),
             };
-            <span class="hljs-literal">Ok</span>(Response::with((<span class="hljs-keyword">match</span> color.as_str() {
-                    <span class="hljs-string">"blue"</span> =&gt; status::TemporaryRedirect,
-                    _ =&gt; status::PermanentRedirect
-                },
-                    Redirect(iUrl::parse(&amp;target_badge).unwrap()))))
+            Response::with((<span class="hljs-keyword">match</span> color.as_str() {
+                    <span class="hljs-string">"blue"</span> =&gt; status::Found,
+                    _ =&gt; status::MovedPermanently
+                }, Redirect(iUrl::parse(&amp;target_badge).unwrap())))
         },</pre></div></div>
             
         </li>
@@ -504,7 +501,7 @@ rather explictly at times.</p>
                                                     }
                                                 })
                                                 .collect();
-                    <span class="hljs-literal">Ok</span>(Response::with((status::<span class="hljs-literal">Ok</span>, logs.join(<span class="hljs-string">"\n"</span>))))
+                    Response::with((status::<span class="hljs-literal">Ok</span>, logs.join(<span class="hljs-string">"\n"</span>)))
                 }</pre></div></div>
             
         </li>
@@ -522,7 +519,7 @@ process. Let the request know.</p>
             </div>
             
             <div class="content"><div class='highlight'><pre>                _ =&gt; {
-                    <span class="hljs-literal">Ok</span>(Response::with((status::<span class="hljs-literal">Ok</span>, <span class="hljs-string">"Started. Please refresh"</span>)))
+                    Response::with((status::<span class="hljs-literal">Ok</span>, <span class="hljs-string">"Started. Please refresh"</span>))
                 }
             }
         },</pre></div></div>
@@ -541,8 +538,11 @@ of the same type. So let’s return a <code>BadRequst</code> :) .</p>
 
             </div>
             
-            <div class="content"><div class='highlight'><pre>        _ =&gt; <span class="hljs-literal">Ok</span>(Response::with((status::BadRequest, <span class="hljs-built_in">format!</span>(<span class="hljs-string">"{} Not Implemented."</span>, method)))),
-    }
+            <div class="content"><div class='highlight'><pre>        _ =&gt; Response::with((status::BadRequest, <span class="hljs-built_in">format!</span>(<span class="hljs-string">"{} Not Implemented."</span>, method))),
+    };
+
+    response.headers.set(CacheControl(<span class="hljs-built_in">vec!</span>[CacheDirective::NoCache]));
+    <span class="hljs-literal">Ok</span>(response)
 }</pre></div></div>
             
         </li>

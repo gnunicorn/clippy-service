@@ -116,10 +116,9 @@ to remove boilerplate code</p>
 <span class="hljs-keyword">use</span> time::now_utc;
 <span class="hljs-keyword">use</span> zip::ZipArchive;
 
-<span class="hljs-keyword">use</span> std::slice::<span class="hljs-built_in">SliceConcatExt</span>;
 <span class="hljs-keyword">use</span> redis::{Commands, RedisResult, PipelineCommands, Value};
 
-<span class="hljs-keyword">use</span> iron::headers::Location;
+<span class="hljs-keyword">use</span> iron::headers::{Location, CacheControl, CacheDirective};
 <span class="hljs-keyword">use</span> iron::prelude::*;
 <span class="hljs-keyword">use</span> iron::status;
 <span class="hljs-keyword">use</span> iron::Url <span class="hljs-keyword">as</span> iUrl;
@@ -637,12 +636,14 @@ be stored. Trigger the update and return that we are “linting”</p>
 <p>This handy function builds a IronResult with the Location-header redirecting
 us to an abitraty string. This is needed because iron requires us to pass
 a URL object otherwise, which we can’t use for relative redirects, which is
-necessary to redirect the branch to the proper SHA-key</p>
+necessary to redirect the branch to the proper SHA-key. Also set a cache
+control header to do this redirect for 300seconds only</p>
 
             </div>
             
             <div class="content"><div class='highlight'><pre><span class="hljs-keyword">pub</span> <span class="hljs-function"><span class="hljs-keyword">fn</span> <span class="hljs-title">local_redir</span></span>(url: &amp;<span class="hljs-keyword">str</span>, source_url: &amp;iUrl) -&gt; IronResult&lt;Response&gt; {
-    <span class="hljs-keyword">let</span> <span class="hljs-keyword">mut</span> resp = Response::with(status::TemporaryRedirect);</pre></div></div>
+    <span class="hljs-keyword">let</span> <span class="hljs-keyword">mut</span> resp = Response::with(status::Found);
+    resp.headers.set(CacheControl(<span class="hljs-built_in">vec!</span>[CacheDirective::MaxAge(<span class="hljs-number">300</span>)]));</pre></div></div>
             
         </li>
         
