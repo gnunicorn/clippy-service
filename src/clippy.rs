@@ -44,13 +44,19 @@ pub fn run<F>(path: &Path, logger: F) -> Result<ClippyResult, String>
                       "--force",
                       format!("--whitelist={}",
                       &path.to_string_lossy().into_owned()).as_str(),
+                      format!("--name={}",
+                      &path.to_string_lossy().into_owned()).as_str(),
 
-    // The command we want to run is `cargo rustc` with the extra compiler
-    // plugin for clippy which can be found at the library path passed after
-    // `-L`. Secondly we need rustc to report errors in the `json`-format (new
-    // nightly feature), so we can parse it later.
+                      // Limit the resources each process is allowed to use to 75% of one CPU,
+                      // for a maximum of 10 minutes
                       "timeout", "-k", "10m", "11m",
                       "cpulimit", "-l75", "--",
+
+
+                      // The command we want to run is `cargo rustc` with the extra compiler
+                      // plugin for clippy which can be found at the library path passed after
+                      // `-L`. Secondly we need rustc to report errors in the `json`-format (new
+                      // nightly feature), so we can parse it later.
                       "cargo",
                       "rustc",
                       "--",
