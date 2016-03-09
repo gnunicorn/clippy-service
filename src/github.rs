@@ -2,11 +2,11 @@
 extern crate redis;
 extern crate time;
 extern crate tempdir;
+extern crate rand;
 
 use std::path::Path;
 use std::thread;
 use tempdir::TempDir;
-use time::now_utc;
 
 use redis::{Commands, PipelineCommands};
 
@@ -87,6 +87,7 @@ pub fn schedule_update(user: &str, repo: &str, sha: &str) {
     let base_key = format!("github/{0}/{1}:{2}", user, repo, sha).to_owned();
 
     let result_key = format!("result/{}", base_key).to_owned();
+    let lock_key = format!("lock/{}", base_key).to_owned();
     let log_key = format!("log/{}", base_key).to_owned();
 
     // now spawn the background thread. We create both the redis connection
@@ -95,46 +96,30 @@ pub fn schedule_update(user: &str, repo: &str, sha: &str) {
         let redis: redis::Connection = setup_redis();
         let logger = |statement: &str| log_redis(&redis, &log_key, statement);
 
-        // But before starting exection, make sure the redis connection is up
-        // and the logs aren't yet written by anyone. We do that inside a redis
-        // transaction, ensuring we are atomic and would.
-        // For that we pass into the transaction the keys we want to be informed
-        // about if changes happen to them while we execute. In that case our
-        // transaction was cancelled before it got executed and we knew that another
-        // background thread was already working on it.
-        if let Ok(existing) = redis::transaction(&redis,
-                                                 &[log_key.clone(), result_key.clone()],
-                                                 |pipe| {
-                                                     match redis.exists(result_key.clone()) {
-                                                         Ok(Some(false)) => {
-                                                             pipe.cmd("RPUSH")
-                                                                 .arg(log_key.clone())
-                                                                 .arg(format!("{0} started \
-                                                                               processing \
-                                                                               github/{1}/{2}:\
-                                                                               {3}",
-                                                                              now_utc().rfc3339(),
-                                                                              user,
-                                                                              repo,
-                                                                              sha))
-                                                                 .ignore()
-                                                                 .execute(&redis);
-                                                             Ok(Some(false))
-                                                         }
-                                                         _ => Ok(Some(true)),
-                                                     }
-                                                 }) {
+        // Processes could be scheduled at the same time. We use redis to keep
+        // a shared lock to ensure we aren't running the same process and write
+        // to the same log more than once.
+        // See http://redis.io/topics/distlock#correct-implementation-with-a-single-instance
+        // to learn more about using redis with distributed locks.
 
-             // we have been alerted, the key already existed
-             // so someone else is writing a log file. We should stop now.
-            if existing {
-                return;
-            }
+        let random_lock_value : u32 = rand::random::<u32>();
+        let _ : bool = redis.set_nx(lock_key.clone(), random_lock_value).unwrap();
+        let lock_val : u32 = redis.get(lock_key.clone()).unwrap();
+        if  lock_val != random_lock_value {
+            // we aren't the ones, who acquired the lock, means someone
+            // else is running this process. We should quit immediately.
+            return
         }
+
+        // Make sure we expire the key though – in 15min.
+        let _ : bool = redis.expire(lock_key.clone(), 900).unwrap();
 
         // No background thread yet, we are ready to roll: execute `update_for_github`
         // and parse the result. If there is ClippyResult, match it to the appropriate
         // status output, otherwise, report the error and set the status to "failed".
+
+        logger("Started Processing");
+
         let text: String = match update_for_github(&user, &repo, &sha, logger) {
             Ok(result) => {
                 match result {

@@ -20,6 +20,7 @@ tempdir = "^0.3.4"
 zip = "^0.1.6"
 mime = "*"
 mount = "^0.0.10"
+rand = "^0.3"
 
 [dependencies.bodyparser]
 # has no release yet...
