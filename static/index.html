@@ -100,7 +100,7 @@ function update_output(username, repo, br, render, style, bg){
       content = 'image:' + badge_url +'[link="' + log_url + '"]';
       break;
     case "ReStructured Text":
-      content = '.. image::' + badge_url + ':target:' + log_url;
+      content = '.. image:: ' + badge_url + '\n    :target: ' + log_url;
       break;
     case "RawLink":
       content = '<a href="' + log_url +'"><img alt="Clippy Linting Result" src="'+ badge_url +'" /></a>'
