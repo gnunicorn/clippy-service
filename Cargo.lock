@@ -3,7 +3,7 @@ name = "clippy_service"
 version = "0.9.0"
 dependencies = [
  "bodyparser 0.2.0 (git+https://github.com/iron/body-parser.git)",
- "clippy 0.0.48 (git+https://github.com/Manishearth/rust-clippy)",
+ "clippy 0.0.49 (git+https://github.com/Manishearth/rust-clippy)",
  "env_logger 0.3.2 (registry+https://github.com/rust-lang/crates.io-index)",
  "hyper 0.7.2 (registry+https://github.com/rust-lang/crates.io-index)",
  "iron 0.2.6 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -85,8 +85,8 @@ dependencies = [
 
 [[package]]
 name = "clippy"
-version = "0.0.48"
-source = "git+https://github.com/Manishearth/rust-clippy#d9b5b2a26445c82565f83ffc0d188ed83067cd2f"
+version = "0.0.49"
+source = "git+https://github.com/Manishearth/rust-clippy#233000da3d0bf4b8887ef3031cade4eae7cc8498"
 dependencies = [
  "regex-syntax 0.2.5 (registry+https://github.com/rust-lang/crates.io-index)",
  "semver 0.2.3 (registry+https://github.com/rust-lang/crates.io-index)",
