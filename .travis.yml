@@ -5,12 +5,35 @@ addons:
   ssh_known_hosts: 37.139.22.109
 
 before_install:
-  - openssl aes-256-cbc -K $encrypted_4ed4cdc9df6d_key -iv $encrypted_4ed4cdc9df6d_iv
-    -in etc/deploy_key.enc -out etc/deploy_key -d
+  - openssl aes-256-cbc -K $encrypted_4ed4cdc9df6d_key -iv $encrypted_4ed4cdc9df6d_iv -in etc/deploy_key.enc -out etc/deploy_key -d
 
 after_success:
-- eval "$(ssh-agent -s)"
-- chmod 600 etc/deploy_key
-- ssh-add etc/deploy_key
-- git remote add deploy dokku@37.139.22.109:clippy
-- git push -u deploy master
+- |
+    #!/bin/bash
+    set -e
+
+    # start ssh agent
+
+    if [ "$TRAVIS_PULL_REQUEST" == "false" ] &&
+       [ "$TRAVIS_REPO_SLUG" == "ligthyear/clippy-service" ] &&
+       [ "$TRAVIS_BRANCH" == "master" ]; then
+      eval "$(ssh-agent -s)"
+      chmod 600 etc/deploy_key
+      ssh-add etc/deploy_key
+
+
+      git config push.default simple
+      git config --global user.name "Travis CI"
+      git config --global user.email "travis@bashy.io"
+
+      git remote add deploy dokku@37.139.22.109:clippy
+
+      sed -i "s/^version = \"\(.*\)\"/version=\"\1-travis-$TRAVIS_BUILD_ID\"/" Cargo.toml
+
+      git commit -m"Adding Build ID to Cargo file" Cargo.toml
+
+      git push -f deploy master
+
+    else
+      echo "Not deploying"
+    fi

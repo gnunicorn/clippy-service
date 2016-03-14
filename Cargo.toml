@@ -1,6 +1,6 @@
 [package]
 name = "clippy_service"
-version = "0.9.0"
+version = "1.0.0"
 authors = ["Benjamin Kampmann <ben@create-build-execute.com>"]
 
 [dependencies]
