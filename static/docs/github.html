@@ -203,7 +203,6 @@ that path and execute <code>run_clippy</code> in that folder</p>
                         <span class="hljs-keyword">let</span> parent_directory = path.parent().unwrap();
                         logger(&amp;<span class="hljs-built_in">format!</span>(<span class="hljs-string">"Cargo file found in {}"</span>,
                                         parent_directory.to_string_lossy().into_owned()));
-                        logger(<span class="hljs-string">"-------------------------------- Running Clippy"</span>);
                         run_clippy(parent_directory, logger)
                     }</pre></div></div>
             

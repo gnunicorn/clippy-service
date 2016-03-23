@@ -1,5 +1,11 @@
 # Clippy Service Changelog
 
+## Mar 24th 2016
+
+ - ensure we are running nightly
+ - Add version print of rustc and cargo to logs
+ - Update docs
+
 ## Mar 9th 2016
 
  - Use improved Redis locking mechanism

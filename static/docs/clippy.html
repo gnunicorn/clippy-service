@@ -74,7 +74,7 @@
 
 <span class="hljs-keyword">use</span> rustc_serialize::json::Json;
 
-<span class="hljs-keyword">use</span> std::process::Command;
+<span class="hljs-keyword">use</span> std::process::{ Command, Output };
 <span class="hljs-keyword">use</span> std::path::Path;
 <span class="hljs-keyword">use</span> std::vec::<span class="hljs-built_in">Vec</span>;
 <span class="hljs-keyword">use</span> std::{env, fs};</pre></div></div>
@@ -98,7 +98,11 @@ errors were found – and if so, how many</p>
     Success,
     WithWarnings(<span class="hljs-keyword">u32</span>),
     WithErrors(<span class="hljs-keyword">u32</span>, <span class="hljs-keyword">u32</span>),
-}</pre></div></div>
+}
+
+<span class="hljs-function"><span class="hljs-keyword">fn</span> <span class="hljs-title">run_in_sandbox</span></span>&lt;F&gt;(path: &amp;Path, command: &amp;<span class="hljs-built_in">Vec</span>&lt;&amp;<span class="hljs-keyword">str</span>&gt;, logger: &amp;F) -&gt; Output
+    <span class="hljs-keyword">where</span> F: <span class="hljs-built_in">Fn</span>(&amp;<span class="hljs-keyword">str</span>)
+{</pre></div></div>
             
         </li>
         
@@ -108,6 +112,97 @@ errors were found – and if so, how many</p>
               
               <div class="pilwrap ">
                 <a class="pilcrow" href="#section-3">&#182;</a>
+              </div>
+              <p>Build the <code>firejail</code> arguments, using the preinstalled <code>cargo</code>-profile
+use the <code>--force</code> flag to make it run even though we are in a docker
+environment. For that to work, our docker needs to be setup to run in
+the <code>--privileged</code> mode.</p>
+
+            </div>
+            
+            <div class="content"><div class='highlight'><pre>
+    logger(&amp;<span class="hljs-built_in">format!</span>(<span class="hljs-string">"Running: {}"</span>, command.join(<span class="hljs-string">" "</span>)));
+
+    <span class="hljs-keyword">let</span> str_path = path.to_string_lossy().into_owned();
+    <span class="hljs-keyword">let</span> whitelist = <span class="hljs-built_in">format!</span>(<span class="hljs-string">"--whitelist={}"</span>, &amp;str_path);
+    <span class="hljs-keyword">let</span> name = <span class="hljs-built_in">format!</span>(<span class="hljs-string">"--name={}"</span>, &amp;str_path);
+
+    <span class="hljs-keyword">let</span> <span class="hljs-keyword">mut</span> args = <span class="hljs-built_in">vec!</span>[<span class="hljs-string">"--profile=/etc/firejail/cargo.profile"</span>,
+                        <span class="hljs-string">"--force"</span>,
+                        <span class="hljs-string">"--quiet"</span>,
+                        whitelist.as_str(),
+                        name.as_str()</pre></div></div>
+            
+        </li>
+        
+        
+        <li id="section-4">
+            <div class="annotation">
+              
+              <div class="pilwrap ">
+                <a class="pilcrow" href="#section-4">&#182;</a>
+              </div>
+              <p>Limit the resources each process is allowed to use to 75% of one CPU,
+for a maximum of 10 minutes soft (11min hard limit).
+Then add the command itself then run it</p>
+
+            </div>
+            
+            <div class="content"><div class='highlight'><pre>                        <span class="hljs-string">"timeout"</span>, <span class="hljs-string">"-k"</span>, <span class="hljs-string">"10m"</span>, <span class="hljs-string">"11m"</span>,
+                        <span class="hljs-string">"cpulimit"</span>, <span class="hljs-string">"-l75"</span>, <span class="hljs-string">"--"</span>,
+
+                        ];
+    args.extend_from_slice(command);
+
+    <span class="hljs-keyword">let</span> output = Command::new(<span class="hljs-string">"firejail"</span>)
+                .args(&amp;args)
+                .current_dir(path)
+                .output().unwrap_or_else( |e| {
+                    logger(&amp;<span class="hljs-built_in">format!</span>(<span class="hljs-string">"Running command failed :\n{}"</span>, &amp;e));
+                    <span class="hljs-built_in">panic!</span>(<span class="hljs-string">"failed to execute process: {}"</span>, &amp;e);
+              });</pre></div></div>
+            
+        </li>
+        
+        
+        <li id="section-5">
+            <div class="annotation">
+              
+              <div class="pilwrap ">
+                <a class="pilcrow" href="#section-5">&#182;</a>
+              </div>
+              <p>Log the content
+and return the result</p>
+
+            </div>
+            
+            <div class="content"><div class='highlight'><pre>    logger(&amp;<span class="hljs-built_in">format!</span>(<span class="hljs-string">"----- stdout:\n{}"</span>, &amp;<span class="hljs-built_in">String</span>::from_utf8(output.stdout.clone()).unwrap()));
+    logger(&amp;<span class="hljs-built_in">format!</span>(<span class="hljs-string">"----- stderr:\n{}"</span>, &amp;<span class="hljs-built_in">String</span>::from_utf8(output.stderr.clone()).unwrap()));</pre></div></div>
+            
+        </li>
+        
+        
+        <li id="section-6">
+            <div class="annotation">
+              
+              <div class="pilwrap ">
+                <a class="pilcrow" href="#section-6">&#182;</a>
+              </div>
+              <p>and return the result</p>
+
+            </div>
+            
+            <div class="content"><div class='highlight'><pre>    output
+}</pre></div></div>
+            
+        </li>
+        
+        
+        <li id="section-7">
+            <div class="annotation">
+              
+              <div class="pilwrap ">
+                <a class="pilcrow" href="#section-7">&#182;</a>
               </div>
               <h2 id="run">Run</h2>
 <p>Run clippy in the specified Path. We expect there to be a Cargo.toml file, checking for
@@ -123,108 +218,20 @@ the current process via the <code>logger</code> function.</p>
         </li>
         
         
-        <li id="section-4">
-            <div class="annotation">
-              
-              <div class="pilwrap ">
-                <a class="pilcrow" href="#section-4">&#182;</a>
-              </div>
-              <p>Find the <em>local</em> clippy we are shipping with the clippy-service
-and append that to the cargo rustc process</p>
-
-            </div>
-            
-            <div class="content"><div class='highlight'><pre>    <span class="hljs-keyword">let</span> libs_path = env::current_exe().unwrap();
-    <span class="hljs-keyword">let</span> libs_path = fs::canonicalize(libs_path).unwrap();
-    <span class="hljs-keyword">let</span> libs_path = libs_path.parent().unwrap();
-    <span class="hljs-keyword">let</span> libs_path = libs_path.join(<span class="hljs-string">"deps"</span>);</pre></div></div>
-            
-        </li>
-        
-        
-        <li id="section-5">
-            <div class="annotation">
-              
-              <div class="pilwrap ">
-                <a class="pilcrow" href="#section-5">&#182;</a>
-              </div>
-              <p>Start the the <code>firejail</code> process, using the preinstalled <code>cargo</code>-profile
-use the <code>--force</code> flag to make it run even though we are in a docker
-environment. For that to work, our docker needs to be setup to run in
-the <code>--privileged</code> mode.
-Lastly allow it to access the usually unaccessible dependencies, where
-our clippy lib is stored.</p>
-
-            </div>
-            
-            <div class="content"><div class='highlight'><pre>    <span class="hljs-keyword">match</span> Command::new(<span class="hljs-string">"firejail"</span>)
-              .args(&amp;[<span class="hljs-string">"--profile=/etc/firejail/cargo.profile"</span>,
-                      <span class="hljs-string">"--force"</span>,
-                      <span class="hljs-built_in">format!</span>(<span class="hljs-string">"--whitelist={}"</span>,
-                      &amp;path.to_string_lossy().into_owned()).as_str(),
-                      <span class="hljs-built_in">format!</span>(<span class="hljs-string">"--name={}"</span>,
-                      &amp;path.to_string_lossy().into_owned()).as_str(),</pre></div></div>
-            
-        </li>
-        
-        
-        <li id="section-6">
-            <div class="annotation">
-              
-              <div class="pilwrap ">
-                <a class="pilcrow" href="#section-6">&#182;</a>
-              </div>
-              <p>Limit the resources each process is allowed to use to 75% of one CPU,
-for a maximum of 10 minutes</p>
-
-            </div>
-            
-            <div class="content"><div class='highlight'><pre>                      <span class="hljs-string">"timeout"</span>, <span class="hljs-string">"-k"</span>, <span class="hljs-string">"10m"</span>, <span class="hljs-string">"11m"</span>,
-                      <span class="hljs-string">"cpulimit"</span>, <span class="hljs-string">"-l75"</span>, <span class="hljs-string">"--"</span>,</pre></div></div>
-            
-        </li>
-        
-        
-        <li id="section-7">
-            <div class="annotation">
-              
-              <div class="pilwrap ">
-                <a class="pilcrow" href="#section-7">&#182;</a>
-              </div>
-              <p>The command we want to run is <code>cargo rustc</code> with the extra compiler
-plugin for clippy which can be found at the library path passed after
-<code>-L</code>. Secondly we need rustc to report errors in the <code>json</code>-format (new
-nightly feature), so we can parse it later.</p>
-
-            </div>
-            
-            <div class="content"><div class='highlight'><pre>                      <span class="hljs-string">"cargo"</span>,
-                      <span class="hljs-string">"rustc"</span>,
-                      <span class="hljs-string">"--"</span>,
-                      <span class="hljs-string">"-L"</span>,
-                      &amp;libs_path.to_string_lossy().into_owned(),
-                      <span class="hljs-string">"-Zunstable-options"</span>,
-                      <span class="hljs-string">"-Zextra-plugins=clippy"</span>,
-                      <span class="hljs-string">"-Zno-trans"</span>,
-                      <span class="hljs-string">"-lclippy"</span>,
-                      <span class="hljs-string">"--error-format=json"</span>])</pre></div></div>
-            
-        </li>
-        
-        
         <li id="section-8">
             <div class="annotation">
               
               <div class="pilwrap ">
                 <a class="pilcrow" href="#section-8">&#182;</a>
               </div>
-              <p>Run it from the directory passed in and keep the output</p>
+              <p> run rustc and cargo versions for easier debugging for the viewer</p>
 
             </div>
             
-            <div class="content"><div class='highlight'><pre>              .current_dir(path)
-              .output() {
-        <span class="hljs-literal">Ok</span>(output) =&gt; {</pre></div></div>
+            <div class="content"><div class='highlight'><pre>    run_in_sandbox(&amp;path, &amp;<span class="hljs-built_in">vec!</span>[<span class="hljs-string">"rustc"</span>, <span class="hljs-string">"--version"</span>], &amp;logger);
+    run_in_sandbox(&amp;path, &amp;<span class="hljs-built_in">vec!</span>[<span class="hljs-string">"cargo"</span>, <span class="hljs-string">"--version"</span>], &amp;logger);
+
+    logger(<span class="hljs-string">"-------------------------------- Running Clippy"</span>);</pre></div></div>
             
         </li>
         
@@ -235,18 +242,19 @@ nightly feature), so we can parse it later.</p>
               <div class="pilwrap ">
                 <a class="pilcrow" href="#section-9">&#182;</a>
               </div>
-              <p>First and foremost: read and log the output, so that
-humans looking at it can use it. See how we are using the
-logger-function to do that?</p>
+              <p>Find the <em>local</em> clippy we are shipping with the clippy-service
+and append that to the cargo rustc process</p>
 
             </div>
             
-            <div class="content"><div class='highlight'><pre>            <span class="hljs-keyword">let</span> stdout = <span class="hljs-built_in">String</span>::from_utf8(output.stdout).unwrap();
-            <span class="hljs-keyword">let</span> stderr = <span class="hljs-built_in">String</span>::from_utf8(output.stderr).unwrap();
-            logger(&amp;<span class="hljs-built_in">format!</span>(<span class="hljs-string">"----- stdout:\n{}"</span>, &amp;stdout));
-            logger(&amp;<span class="hljs-built_in">format!</span>(<span class="hljs-string">"----- stderr:\n{}"</span>, &amp;stderr));
-            <span class="hljs-keyword">let</span> <span class="hljs-keyword">mut</span> warnings = <span class="hljs-number">0</span>;
-            <span class="hljs-keyword">let</span> <span class="hljs-keyword">mut</span> errors = <span class="hljs-number">0</span>;</pre></div></div>
+            <div class="content"><div class='highlight'><pre>    <span class="hljs-keyword">let</span> libs_path = env::current_exe().unwrap();
+    <span class="hljs-keyword">let</span> libs_path = fs::canonicalize(libs_path).unwrap();
+    <span class="hljs-keyword">let</span> libs_path = libs_path.parent().unwrap();
+    <span class="hljs-keyword">let</span> libs_path = libs_path.join(<span class="hljs-string">"deps"</span>);
+    <span class="hljs-keyword">let</span> libs_path = libs_path.to_str().unwrap().to_owned();
+
+
+    <span class="hljs-keyword">let</span> output = run_in_sandbox(&amp;path, &amp;<span class="hljs-built_in">vec!</span>[</pre></div></div>
             
         </li>
         
@@ -257,17 +265,28 @@ logger-function to do that?</p>
               <div class="pilwrap ">
                 <a class="pilcrow" href="#section-10">&#182;</a>
               </div>
-              <p>Next up, we need to parse the outpuf from stderr, where
-clippy and the compiler might report errors to us. There is
-one error per line, which is why we split it into lines. We
-then use <code>filter_map</code> to find all those lines we can decode
-from JSON</p>
+              <p>The command we want to run is <code>cargo rustc</code> with the extra compiler
+plugin for clippy which can be found at the library path passed after
+<code>-L</code>. Secondly we need rustc to report errors in the <code>json</code>-format (new
+nightly feature), so we can parse it later.</p>
 
             </div>
             
-            <div class="content"><div class='highlight'><pre>            <span class="hljs-keyword">let</span> messages: <span class="hljs-built_in">Vec</span>&lt;<span class="hljs-built_in">String</span>&gt; = stderr.split(<span class="hljs-string">'\n'</span>)
-                                            .filter_map(|line| Json::from_str(&amp;line).ok())
-                                            .filter_map(|json| {</pre></div></div>
+            <div class="content"><div class='highlight'><pre>                    <span class="hljs-string">"cargo"</span>,
+                    <span class="hljs-string">"rustc"</span>,
+                    <span class="hljs-string">"--"</span>,
+                    <span class="hljs-string">"-L"</span>,
+                    libs_path.as_str(),
+                    <span class="hljs-string">"-Zunstable-options"</span>,
+                    <span class="hljs-string">"-Zextra-plugins=clippy"</span>,
+                    <span class="hljs-string">"-Zno-trans"</span>,
+                    <span class="hljs-string">"-lclippy"</span>,
+                    <span class="hljs-string">"--error-format=json"</span>], &amp;logger);
+
+    <span class="hljs-keyword">let</span> stderr = <span class="hljs-built_in">String</span>::from_utf8(output.stderr).unwrap();
+
+    <span class="hljs-keyword">let</span> <span class="hljs-keyword">mut</span> warnings = <span class="hljs-number">0</span>;
+    <span class="hljs-keyword">let</span> <span class="hljs-keyword">mut</span> errors = <span class="hljs-number">0</span>;</pre></div></div>
             
         </li>
         
@@ -278,29 +297,17 @@ from JSON</p>
               <div class="pilwrap ">
                 <a class="pilcrow" href="#section-11">&#182;</a>
               </div>
-              <p>and then <code>filter_map</code> those into
-the warnings and errors we care about,
-while also updating the local count
-of both.</p>
+              <p>Next up, we need to parse the outpuf from stderr, where
+clippy and the compiler might report errors to us. There is
+one error per line, which is why we split it into lines. We
+then use <code>filter_map</code> to find all those lines we can decode
+from JSON</p>
 
             </div>
             
-            <div class="content"><div class='highlight'><pre>                                                <span class="hljs-keyword">let</span> obj = json.as_object().unwrap();
-                                                <span class="hljs-keyword">match</span> obj.get(<span class="hljs-string">"level"</span>) {
-                                                    <span class="hljs-literal">Some</span>(&amp;Json::<span class="hljs-built_in">String</span>(<span class="hljs-keyword">ref</span> level)) =&gt; {
-                                                        <span class="hljs-keyword">if</span> level == <span class="hljs-string">"warning"</span> {
-                                                            warnings += <span class="hljs-number">1</span>;
-                                                        } <span class="hljs-keyword">else</span> <span class="hljs-keyword">if</span> level == <span class="hljs-string">"error"</span> {
-                                                            errors += <span class="hljs-number">1</span>;
-                                                        }
-                                                        <span class="hljs-literal">Some</span>(<span class="hljs-built_in">format!</span>(<span class="hljs-string">"{level}: {msg}"</span>,
-                                                                     level = level,
-                                                                     msg = obj.get(<span class="hljs-string">"message"</span>)
-                                                                              .unwrap()))
-                                                    }
-                                                    _ =&gt; <span class="hljs-literal">None</span>,
-                                                }
-                                            })</pre></div></div>
+            <div class="content"><div class='highlight'><pre>    <span class="hljs-keyword">let</span> messages: <span class="hljs-built_in">Vec</span>&lt;<span class="hljs-built_in">String</span>&gt; = stderr.split(<span class="hljs-string">'\n'</span>)
+        .filter_map(|line| Json::from_str(&amp;line).ok())
+        .filter_map(|json| {</pre></div></div>
             
         </li>
         
@@ -311,15 +318,27 @@ of both.</p>
               <div class="pilwrap ">
                 <a class="pilcrow" href="#section-12">&#182;</a>
               </div>
-              <p>The collect executes this iterative into
-a vector of results. We can now log to the
-viewer.</p>
+              <p>and then <code>filter_map</code> those into
+the warnings and errors we care about,
+while also updating the local count
+of both.</p>
 
             </div>
             
-            <div class="content"><div class='highlight'><pre>                                            .collect();
-
-            logger(&amp;<span class="hljs-built_in">format!</span>(<span class="hljs-string">"-----\nMessages identified:\n {}"</span>, messages.join(<span class="hljs-string">"\n"</span>)));</pre></div></div>
+            <div class="content"><div class='highlight'><pre>            <span class="hljs-keyword">let</span> obj = json.as_object().unwrap();
+            <span class="hljs-keyword">match</span> obj.get(<span class="hljs-string">"level"</span>) {
+                <span class="hljs-literal">Some</span>(&amp;Json::<span class="hljs-built_in">String</span>(<span class="hljs-keyword">ref</span> level)) =&gt; {
+                    <span class="hljs-keyword">if</span> level == <span class="hljs-string">"warning"</span> {
+                        warnings += <span class="hljs-number">1</span>;
+                    } <span class="hljs-keyword">else</span> <span class="hljs-keyword">if</span> level == <span class="hljs-string">"error"</span> {
+                        errors += <span class="hljs-number">1</span>;
+                    }
+                    <span class="hljs-literal">Some</span>(<span class="hljs-built_in">format!</span>(<span class="hljs-string">"{level}: {msg}"</span>, level = level,
+                                 msg = obj.get(<span class="hljs-string">"message"</span>).unwrap()))
+                }
+                _ =&gt; <span class="hljs-literal">None</span>,
+            }
+        })</pre></div></div>
             
         </li>
         
@@ -330,17 +349,15 @@ viewer.</p>
               <div class="pilwrap ">
                 <a class="pilcrow" href="#section-13">&#182;</a>
               </div>
-              <p>Next parse the count of errors and warnings
-and wrap that into the appropriate <code>ClippyResult</code></p>
+              <p>The collect executes this iterative into
+a vector of results. We can now log to the
+viewer.</p>
 
             </div>
             
-            <div class="content"><div class='highlight'><pre>            <span class="hljs-keyword">if</span> output.status.success() {
-                <span class="hljs-keyword">match</span> (errors, warnings) {
-                    (<span class="hljs-number">0</span>, <span class="hljs-number">0</span>) =&gt; <span class="hljs-literal">Ok</span>(ClippyResult::Success),
-                    (<span class="hljs-number">0</span>, x) =&gt; <span class="hljs-literal">Ok</span>(ClippyResult::WithWarnings(x)),
-                    _ =&gt; <span class="hljs-literal">Ok</span>(ClippyResult::WithErrors(errors, warnings))
-                }</pre></div></div>
+            <div class="content"><div class='highlight'><pre>        .collect();
+
+    logger(&amp;<span class="hljs-built_in">format!</span>(<span class="hljs-string">"-----\nMessages identified:\n {}"</span>, messages.join(<span class="hljs-string">"\n"</span>)));</pre></div></div>
             
         </li>
         
@@ -351,16 +368,19 @@ and wrap that into the appropriate <code>ClippyResult</code></p>
               <div class="pilwrap ">
                 <a class="pilcrow" href="#section-14">&#182;</a>
               </div>
-              <p>Or report an Error if clippy (or firejail) failed to execute</p>
+              <p>Next parse the count of errors and warnings
+and wrap that into the appropriate <code>ClippyResult</code></p>
 
             </div>
             
-            <div class="content"><div class='highlight'><pre>            } <span class="hljs-keyword">else</span> {
-                <span class="hljs-literal">Err</span>(<span class="hljs-built_in">format!</span>(<span class="hljs-string">"Clippy failed with Error code: {}"</span>,
-                            output.status.code().unwrap_or(-<span class="hljs-number">999</span>)))
-            }
+            <div class="content"><div class='highlight'><pre>    <span class="hljs-keyword">if</span> output.status.success() {
+        <span class="hljs-keyword">match</span> (errors, warnings) {
+            (<span class="hljs-number">0</span>, <span class="hljs-number">0</span>) =&gt; <span class="hljs-literal">Ok</span>(ClippyResult::Success),
+            (<span class="hljs-number">0</span>, x) =&gt; <span class="hljs-literal">Ok</span>(ClippyResult::WithWarnings(x)),
+            _ =&gt; <span class="hljs-literal">Ok</span>(ClippyResult::WithErrors(errors, warnings))
         }
-        <span class="hljs-literal">Err</span>(error) =&gt; <span class="hljs-literal">Err</span>(<span class="hljs-built_in">format!</span>(<span class="hljs-string">"Running Clippy failed: {}"</span>, error)),
+    } <span class="hljs-keyword">else</span> {
+        <span class="hljs-literal">Err</span>(<span class="hljs-string">"Running Clippy failed."</span>.to_string())
     }
 }</pre></div></div>
             
