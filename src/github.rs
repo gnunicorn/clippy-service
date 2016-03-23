@@ -57,7 +57,6 @@ fn update_for_github<F>(user: &str,
                         let parent_directory = path.parent().unwrap();
                         logger(&format!("Cargo file found in {}",
                                         parent_directory.to_string_lossy().into_owned()));
-                        logger("-------------------------------- Running Clippy");
                         run_clippy(parent_directory, logger)
                     }
                     // Report back if there is no `Cargo.toml` file or if there has been
