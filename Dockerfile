@@ -17,7 +17,7 @@ WORKDIR ~/app
 RUN etc/install_firejail.sh
 
 # build service
-RUN cargo build
+RUN cargo build --verbose
 
 EXPOSE 8080
 
