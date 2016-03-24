@@ -37,7 +37,7 @@ fn run_in_sandbox<F>(path: &Path, command: &Vec<&str>, logger: &F) -> Output
                         "--force",
                         "--quiet",
                         whitelist.as_str(),
-                        name.as_str()
+                        name.as_str(),
 
                         // Limit the resources each process is allowed to use to 75% of one CPU,
                         // for a maximum of 10 minutes soft (11min hard limit).
