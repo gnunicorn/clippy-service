@@ -26,13 +26,9 @@ after_success:
       git config --global user.name "Travis CI"
       git config --global user.email "travis@bashy.io"
 
-      git remote add deploy dokku@37.139.22.109:clippy
+      git commit -m"Force Lock Current Versions of Deps" Cargo.lock
 
-      sed -i "s/^version = \"\(.*\)\"/version=\"\1-travis-$TRAVIS_BUILD_ID\"/" Cargo.toml
-
-      git commit -m"Adding Build ID to Cargo file" Cargo.toml
-
-      git push -f deploy master
+      git push -f dokku@37.139.22.109:clippy HEAD:master
 
     else
       echo "Not deploying"
