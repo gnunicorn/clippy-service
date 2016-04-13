@@ -27,7 +27,7 @@ after_success:
       ssh-add etc/deploy_key
 
       docker save dokku/clippy:latest | bzip2 | ssh root@37.139.22.109 "bunzip2 | docker load"
-      ssh root@37.139.22.109 "dokku tags:deploy dokku/clippy:latest"
+      ssh root@37.139.22.109 "dokku tags:deploy clippy"
 
     else
       echo "Not deploying"
