@@ -1,4 +1,7 @@
 language: rust
+sudo: required
+services:
+  - docker
 rust:
 - nightly
 addons:
@@ -21,14 +24,10 @@ after_success:
       chmod 600 etc/deploy_key
       ssh-add etc/deploy_key
 
+      docker build -t dokku/clippy:latest
 
-      git config push.default simple
-      git config --global user.name "Travis CI"
-      git config --global user.email "travis@bashy.io"
-
-      git commit -m"Force Lock Current Versions of Deps" Cargo.lock
-
-      git push -f dokku@37.139.22.109:clippy HEAD:master
+      docker save dokku/clippy:latest | bzip2 | ssh 37.139.22.109 "bunzip2 | docker load"
+      ssh 37.139.22.109 "dokku tags:deploy dokku/clippy:latest"
 
     else
       echo "Not deploying"
