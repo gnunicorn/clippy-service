@@ -2,10 +2,12 @@ language: rust
 sudo: required
 services:
   - docker
-rust:
-- nightly
+
 addons:
   ssh_known_hosts: 37.139.22.109
+
+script:
+  - docker build -t dokku/clippy:latest .
 
 before_install:
   - openssl aes-256-cbc -K $encrypted_4ed4cdc9df6d_key -iv $encrypted_4ed4cdc9df6d_iv -in etc/deploy_key.enc -out etc/deploy_key -d
@@ -23,8 +25,6 @@ after_success:
       eval "$(ssh-agent -s)"
       chmod 600 etc/deploy_key
       ssh-add etc/deploy_key
-
-      docker build -t dokku/clippy:latest
 
       docker save dokku/clippy:latest | bzip2 | ssh 37.139.22.109 "bunzip2 | docker load"
       ssh 37.139.22.109 "dokku tags:deploy dokku/clippy:latest"
