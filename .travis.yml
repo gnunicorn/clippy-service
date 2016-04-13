@@ -1,4 +1,4 @@
-language: rust
+language: python
 sudo: required
 services:
   - docker
@@ -26,8 +26,8 @@ after_success:
       chmod 600 etc/deploy_key
       ssh-add etc/deploy_key
 
-      docker save dokku/clippy:latest | bzip2 | ssh 37.139.22.109 "bunzip2 | docker load"
-      ssh 37.139.22.109 "dokku tags:deploy dokku/clippy:latest"
+      docker save dokku/clippy:latest | bzip2 | ssh root@37.139.22.109 "bunzip2 | docker load"
+      ssh root@37.139.22.109 "dokku tags:deploy dokku/clippy:latest"
 
     else
       echo "Not deploying"
