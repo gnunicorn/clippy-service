@@ -1,19 +1,22 @@
 #!/bin/bash
 set -e
 
-# download firejail
-curl -sLO https://sourceforge.net/projects/firejail/files/firejail/firejail_0.9.38_1_amd64.deb
-curl -sLO https://sourceforge.net/projects/firejail/files/firejail/firejail-0.9.38.asc
+SOURCEPWD=`pwd`
+TMPDIR=`mktemp -d`
 
-# check the gpg signature
-gpg --import etc/firejail-developers.asc
-gpg --no-default-keyring --verify firejail-0.9.38.asc
+mkdir -p "$TMPDIR"
+cd "$TMPDIR"
+# download firejail
+curl -sLO http://downloads.sourceforge.net/project/firejail/firejail/firejail_0.9.40-rc1_1_amd64.deb
 
 # check the checksum
-grep firejail_0.9.38_1_amd64.deb firejail-0.9.38.asc | sha256sum -c --status
+echo "9ce9d6e72f65bafd51a2240da7954e657413b5ff  firejail_0.9.40-rc1_1_amd64.deb" | sha1sum -c --status
 
-sudo dpkg -i firejail_0.9.38_1_amd64.deb
+sudo dpkg -i firejail_0.9.40-rc1_1_amd64.deb
+
+cd "$SOURCEPWD"
+rm -rf "$TMPDIR"
 
 # setting up our profile
-sudo cp etc/cargo.firejail.profile /etc/firejail/cargo.profile
-sudo cp etc/cargo.netfilter.profile /etc/firejail/cargo.net
+sudo cp "$SOURCEPWD/etc/cargo.firejail.profile" /etc/firejail/cargo.profile
+sudo cp "$SOURCEPWD/etc/cargo.netfilter.profile" /etc/firejail/cargo.net
