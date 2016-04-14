@@ -1,5 +1,12 @@
 # Clippy Service Changelog
 
+## April 14th 2016
+
+ - We know have an [automatic docker build](https://hub.docker.com/r/lightyear/clippy-service/) on every push for you (not necessarily always up to date though)
+ - build docker image from travis and push it directly instead of building it with dokku
+ - updated to latest firejail fixes a bunch of false-positives
+ - minor TLS fixes
+
 ## Mar 24th 2016
 
  - ensure we are running nightly
