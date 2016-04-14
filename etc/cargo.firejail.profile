@@ -3,8 +3,6 @@
 ################################
 
 # default security profile
-include /etc/firejail/disable-mgmt.inc
-include /etc/firejail/disable-secret.inc
 include /etc/firejail/disable-common.inc
 read-only ${HOME}/app
 read-only /vagrant/
