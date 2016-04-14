@@ -38,7 +38,7 @@ Vagrant.configure(2) do |config|
   config.vm.network "private_network", ip: "10.1.1.10"
   config.vm.synced_folder ".", "/vagrant",  type: 'nfs'
 
-  config.vm.network "forwarded_port", guest: 8080, host: 9099
+  config.vm.network "forwarded_port", guest: 5000, host: 9099
   config.vm.provision "shell", inline: INSTALL
   # use rustup.sh to install nightly.
   config.vm.provision "shell", inline: "curl -sO https://static.rust-lang.org/rustup.sh && sh rustup.sh --yes --channel=nightly"

@@ -19,6 +19,6 @@ RUN etc/install_firejail.sh
 # build service
 RUN cargo build --verbose
 
-EXPOSE 8080
+EXPOSE 5000
 
 CMD cargo run
