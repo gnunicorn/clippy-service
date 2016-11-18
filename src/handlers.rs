@@ -25,7 +25,7 @@ use redis::{Commands, Value};
 use helpers::{setup_redis, fetch, get_status_or,  local_redir, set_redis_cache};
 use github::schedule_update as schedule_github_update;
 
-// The base URL for our badges. We aren't actually compiling them ourselfes,
+// The base URL for our badges. We aren't actually compiling them ourselves,
 // but are reusing the great shields.io service.
 static BADGE_URL_BASE: &'static str = "https://img.shields.io/badge/";
 
