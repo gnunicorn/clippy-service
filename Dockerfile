@@ -16,6 +16,9 @@ WORKDIR ~/app
 # install firejail
 RUN etc/install_firejail.sh
 
+# workaround for nightly bug: https://github.com/rust-lang/cargo/issues/3344
+ENV SSL_CERT_FILE=/etc/ssl/certs/ca-certificates.crt
+
 # build service
 RUN cargo build --verbose
 
