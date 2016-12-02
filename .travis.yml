@@ -20,7 +20,7 @@ after_success:
     # start ssh agent
 
     if [ "$TRAVIS_PULL_REQUEST" == "false" ] &&
-       [ "$TRAVIS_REPO_SLUG" == "ligthyear/clippy-service" ] &&
+       [ "$TRAVIS_REPO_SLUG" == "gnunicorn/clippy-service" ] &&
        [ "$TRAVIS_BRANCH" == "master" ]; then
       eval "$(ssh-agent -s)"
       chmod 600 etc/deploy_key
