@@ -1,6 +1,6 @@
 # Clippy Service
 
-[![Build Status](https://travis-ci.org/ligthyear/clippy-service.svg?branch=master)](https://travis-ci.org/ligthyear/clippy-service) [![](https://img.shields.io/badge/Code%20Style-rustfmt-brightgreen.svg?style=flat-square)](https://github.com/rust-lang-nursery/rustfmt#configuring-rustfmt) ![](http://clippy.bashy.io/github/ligthyear/clippy-service/master/badge.svg?style=flat-square) [![All Contributors](https://img.shields.io/badge/all_contributors-4-orange.svg?style=flat-square)](#contributors)
+[![Build Status](https://travis-ci.org/gnunicorn/clippy-service.svg?branch=master)](https://travis-ci.org/gnunicorn/clippy-service) [![](https://img.shields.io/badge/Code%20Style-rustfmt-brightgreen.svg?style=flat-square)](https://github.com/rust-lang-nursery/rustfmt#configuring-rustfmt) ![](http://clippy.bashy.io/github/gnunicorn/clippy-service/master/badge.svg?style=flat-square) [![All Contributors](https://img.shields.io/badge/all_contributors-4-orange.svg?style=flat-square)](#contributors)
 
 ## Documentation
 
