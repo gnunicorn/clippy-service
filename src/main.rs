@@ -83,9 +83,9 @@ fn main() {
     mount.mount("/", Static::new(Path::new("static")));
 
     // Send a message to the console, letting the user know we are (going to be) up
-    warn!("Server running at 8080");
+    warn!("Server running at 5000");
 
     // And start serving those routes
-    // On port `8080` of all interfaces
+    // On port `5000` of all interfaces
     Iron::new(mount).http("0.0.0.0:5000").unwrap();
 }
