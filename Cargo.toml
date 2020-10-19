@@ -22,7 +22,7 @@ mime = "*"
 mount = "^0.0.10"
 rand = "^0.3"
 
-[dependencies.bodyparser]
+[dependencies.bodyparser ]
 # has no release yet...
 git = "https://github.com/iron/body-parser.git"
 
